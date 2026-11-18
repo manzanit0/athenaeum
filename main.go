@@ -20,6 +20,7 @@ import (
 	"github.com/manzanit0/athenaeum/internal/api"
 	"github.com/manzanit0/athenaeum/internal/convert"
 	"github.com/manzanit0/athenaeum/internal/device"
+	"github.com/manzanit0/athenaeum/internal/home"
 	"github.com/manzanit0/athenaeum/internal/library"
 	"github.com/manzanit0/athenaeum/internal/megasync"
 	"github.com/manzanit0/athenaeum/internal/preview"
@@ -39,8 +40,9 @@ const shutdownTimeout = 10 * time.Second
 type config struct {
 	// addr is the address the HTTP server listens on.
 	addr string
-	// dataDir holds the database and the library folder.
-	dataDir string
+	// home is the folder that remembers the libraries. It is also the
+	// first library, until another folder is opened in the interface.
+	home string
 	// kindlePath is the default Kindle mount point; empty means detect it.
 	kindlePath string
 	// secret is the passphrase that protects what is kept encrypted in
@@ -74,7 +76,7 @@ func env(key, fallback string) string {
 func loadConfig() config {
 	return config{
 		addr:         env("ATHENAEUM_ADDR", ":8080"),
-		dataDir:      env("ATHENAEUM_DATA_DIR", "data"),
+		home:         env("ATHENAEUM_HOME", "data"),
 		kindlePath:   env("ATHENAEUM_KINDLE_PATH", ""),
 		secret:       env("ATHENAEUM_SECRET", ""),
 		megaFolder:   env("ATHENAEUM_MEGA_FOLDER", ""),
@@ -119,32 +121,45 @@ func checkHealth(cfg config) error {
 	return nil
 }
 
-// newServer wires the application together from cfg.
-func newServer(cfg config) (*api.Server, *store.Store, error) {
-	if err := os.MkdirAll(cfg.dataDir, 0o755); err != nil {
-		return nil, nil, err
-	}
-	st, err := store.Open(filepath.Join(cfg.dataDir, "athenaeum.db"))
+// openLibrary wires together the server of the library in the folder
+// dir, which must exist, and reads what is in it. It returns, with the
+// server, what closes the library's database.
+func (cfg config) openLibrary(dir string) (*api.Server, func(), error) {
+	st, err := store.Open(filepath.Join(dir, home.Catalogue))
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := st.FailRunningJobs(); err != nil {
+	srv, err := cfg.newServer(dir, st)
+	if err != nil {
 		st.Close()
 		return nil, nil, err
+	}
+	found, err := srv.Library.Rescan(context.Background())
+	if err != nil {
+		st.Close()
+		return nil, nil, fmt.Errorf("reading the library folder: %w", err)
+	}
+	slog.Info("a library was opened", "folder", dir,
+		"added", found.Added, "updated", found.Updated, "removed", found.Removed)
+	return srv, func() { st.Close() }, nil
+}
+
+// newServer builds the server of the library in dir on the database st.
+func (cfg config) newServer(dir string, st *store.Store) (*api.Server, error) {
+	if err := st.FailRunningJobs(); err != nil {
+		return nil, err
 	}
 	tools := &convert.Tools{
 		ConvertBin: cfg.ebookConvert, MetaBin: cfg.ebookMeta,
 		PreferCalibre: cfg.converter == "calibre",
 	}
-	lib, err := library.New(filepath.Join(cfg.dataDir, "library"), filepath.Join(cfg.dataDir, "tmp"), st, tools.ExtractCover)
+	lib, err := library.New(filepath.Join(dir, "library"), filepath.Join(dir, "tmp"), st, tools.ExtractCover)
 	if err != nil {
-		st.Close()
-		return nil, nil, err
+		return nil, err
 	}
-	secrets, err := vault.Open(st, cfg.dataDir, cfg.secret)
+	secrets, err := vault.Open(st, dir, cfg.secret)
 	if err != nil {
-		st.Close()
-		return nil, nil, fmt.Errorf("opening the vault: %w", err)
+		return nil, fmt.Errorf("opening the vault: %w", err)
 	}
 	accounts := &megasync.Accounts{Service: megaService(), Secrets: secrets}
 	srv := &api.Server{
@@ -152,7 +167,7 @@ func newServer(cfg config) (*api.Server, *store.Store, error) {
 		Library:  lib,
 		Tools:    tools,
 		Syncer:   &megasync.Syncer{Accounts: accounts, Store: st, Library: lib},
-		Previews: &preview.Cache{Dir: filepath.Join(cfg.dataDir, "cache", "preview")},
+		Previews: &preview.Cache{Dir: filepath.Join(dir, "cache", "preview")},
 		Defaults: map[string]string{
 			api.SettingMegaFolder: megasync.Normalize(cfg.megaFolder),
 			api.SettingKindlePath: cfg.kindlePath,
@@ -167,7 +182,7 @@ func newServer(cfg config) (*api.Server, *store.Store, error) {
 		}
 		return path
 	})
-	return srv, st, nil
+	return srv, nil
 }
 
 // stopWhenClosed calls stop once r has nothing more to read, which for
@@ -177,29 +192,28 @@ func stopWhenClosed(r io.Reader, stop func()) {
 	stop()
 }
 
-// serve runs the HTTP server until the process is asked to stop.
+// serve runs the HTTP server until the process is asked to stop. A
+// library that cannot be opened does not stop it: the interface then
+// asks which library to open instead.
 func serve(cfg config) error {
-	srv, st, err := newServer(cfg)
+	known, err := home.Open(cfg.home)
 	if err != nil {
-		return err
+		return fmt.Errorf("opening the home folder: %w", err)
 	}
-	defer st.Close()
+	host := &api.Host{Home: known, Open: cfg.openLibrary, UI: web.FS()}
+	host.Start()
+	defer host.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if cfg.stopOnStdinClose {
 		go stopWhenClosed(os.Stdin, stop)
 	}
-	found, err := srv.Library.Rescan(ctx)
-	if err != nil {
-		return fmt.Errorf("reading the library folder: %w", err)
-	}
-	slog.Info("the library folder was read", "added", found.Added, "updated", found.Updated, "removed", found.Removed)
-	httpServer := &http.Server{Addr: cfg.addr, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second}
+	httpServer := &http.Server{Addr: cfg.addr, Handler: host.Handler(), ReadHeaderTimeout: 10 * time.Second}
 	failed := make(chan error, 1)
 	go func() {
 		failed <- httpServer.ListenAndServe()
 	}()
-	slog.Info("athenaeum is listening", "addr", cfg.addr, "data", cfg.dataDir, "version", version)
+	slog.Info("athenaeum is listening", "addr", cfg.addr, "home", known.Dir(), "version", version)
 	select {
 	case err := <-failed:
 		return err

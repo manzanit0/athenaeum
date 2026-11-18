@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { api } from "./api";
-import { useLoad } from "./hooks";
+import { api, type Libraries } from "./api";
+import { type Loaded, useLoad } from "./hooks";
+import { LibrarySwitcher } from "./LibrarySwitcher";
 import { NoticesProvider } from "./notices";
 import { ActivityPage } from "./pages/Activity";
 import { BookPage } from "./pages/Book";
 import { CategoriesPage } from "./pages/Categories";
 import { DevicePage } from "./pages/Device";
+import { LibrariesPage } from "./pages/Libraries";
 import { LibraryPage } from "./pages/Library";
 import { PreviewPage } from "./pages/Preview";
 import { SyncPage } from "./pages/Sync";
@@ -25,8 +27,18 @@ function isCurrent(path: string, to: string): boolean {
   return to === "/" ? path === "/" || path === "/categories" || path.startsWith("/books/") : path.startsWith(to);
 }
 
-/** Chooses the page for the current path. */
-function page(path: string): ReactNode {
+/**
+ * Chooses the page for the current path. With no library open there is
+ * one page, the libraries; until the server has said which it is, there
+ * is none, so that pages do not ask a closed library for their content.
+ */
+function page(path: string, libraries: Loaded<Libraries>): ReactNode {
+  if (!libraries.data && !libraries.error) {
+    return null;
+  }
+  if (path === "/libraries" || (libraries.data && !libraries.data.current)) {
+    return <LibrariesPage libraries={libraries} />;
+  }
   const book = /^\/books\/(\d+)$/.exec(path);
   if (book) {
     return <BookPage key={book[1]} id={Number(book[1])} />;
@@ -60,11 +72,17 @@ function page(path: string): ReactNode {
  * The application frame: navigation beside the current page. The library
  * takes the whole width of the window, which a shelf of books can fill;
  * the other pages keep to a width that reads well, centred in the space
- * beside the navigation.
+ * beside the navigation. Under the application's name is the library
+ * that is open, as a control that switches to the others; the sections
+ * below it belong to that library. With no library open, the sections
+ * give way to the page that opens one.
  */
 export function App() {
   const path = usePath();
+  const libraries = useLoad(api.libraries, []);
   const system = useLoad(api.system, []);
+  const closed = libraries.data !== undefined && !libraries.data.current;
+  const shelf = path === "/" && !closed;
   return (
     <SystemContext.Provider value={system.data ?? fallbackSystem}>
       <NoticesProvider>
@@ -73,8 +91,13 @@ export function App() {
             <Link to="/" className="block font-display text-[1.6rem] font-medium tracking-[-0.01em] md:px-7">
               Athenaeum
             </Link>
-            <nav aria-label="Sections" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 md:mt-9 md:flex-col md:gap-0">
-              {destinations.map(({ to, label }) => {
+            {libraries.data && (
+              <div className="mt-3 max-w-64 md:mx-5 md:mt-5">
+                <LibrarySwitcher libraries={libraries.data} onRefused={libraries.reload} />
+              </div>
+            )}
+            <nav aria-label="Sections" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 md:mt-6 md:flex-col md:gap-0">
+              {(closed ? [] : destinations).map(({ to, label }) => {
                 const current = isCurrent(path, to);
                 return (
                   <Link
@@ -97,7 +120,9 @@ export function App() {
               <p className="mt-auto hidden px-7 text-[0.87rem] text-soft md:block">Version {system.data.version}</p>
             )}
           </aside>
-          <main className={`w-full px-5 py-7 md:px-10 md:py-9 ${path === "/" ? "" : "mx-auto max-w-[72rem]"}`}>{page(path)}</main>
+          <main className={`w-full px-5 py-7 md:px-10 md:py-9 ${shelf ? "" : "mx-auto max-w-[72rem]"}`}>
+            {page(path, libraries)}
+          </main>
         </div>
       </NoticesProvider>
     </SystemContext.Provider>

@@ -39,13 +39,16 @@ RUN apt-get update \
     && mkdir -p /data /kindle
 COPY --from=build /out/athenaeum /usr/local/bin/
 
-# The library and the database, which holds the MEGA session encrypted,
-# live in /data. Set ATHENAEUM_SECRET to keep the key that protects the
-# session out of that volume; otherwise it is a file in it. The Kindle is
+# The list of libraries and the first library, with its database, which
+# holds the MEGA session encrypted, live in /data. Other libraries are
+# opened in the interface by their path inside the container, so mount
+# the folders they should live in. Set ATHENAEUM_SECRET to keep the key
+# that protects the session out of that volume; otherwise it is a file
+# in the library. The Kindle is
 # expected to be mounted at /kindle. Qt runs without a display, and its
 # browser engine, used for PDF output, cannot sandbox itself as root.
 ENV ATHENAEUM_ADDR=:8080 \
-    ATHENAEUM_DATA_DIR=/data \
+    ATHENAEUM_HOME=/data \
     ATHENAEUM_KINDLE_PATH=/kindle \
     QT_QPA_PLATFORM=offscreen \
     QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox

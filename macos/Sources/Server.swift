@@ -35,6 +35,9 @@ final class Server {
     /// How often the server is asked whether it is up.
     private static let pollInterval: UInt64 = 200_000_000
 
+    /// The key the port is stored under in the app's defaults.
+    private static let portKey = "ServerPort"
+
     /// How much of the end of the log is shown when the server fails.
     private static let logTailBytes = 1500
 
@@ -58,18 +61,18 @@ final class Server {
     /// Whether the app asked the server to stop.
     private var stopping = false
 
-    /// Starts the server on a free loopback port, with its data in
+    /// Starts the server on a loopback port, with its home in
     /// Application Support and its output in a log file.
     init() throws {
         guard let binary = Bundle.main.url(forAuxiliaryExecutable: Server.binaryName) else {
             throw Failure.missingBinary
         }
-        let port = try Server.freePort()
+        let port = try Server.port()
         url = URL(string: "http://127.0.0.1:\(port)/")!
         logFile = try Server.makeLogFile()
         let log = try FileHandle(forWritingTo: logFile)
         process.executableURL = binary
-        process.environment = try Server.environment(port: port)
+        process.environment = Server.environment(port: port)
         process.standardInput = lifeline
         process.standardOutput = log
         process.standardError = log
@@ -127,14 +130,14 @@ final class Server {
     }
 
     /// Builds the server's environment: what the app was started with, plus
-    /// the address, the data folder and calibre's tools when they are found.
-    /// A data folder or tool already set in the environment is kept.
-    private static func environment(port: UInt16) throws -> [String: String] {
+    /// the address, the home folder and calibre's tools when they are
+    /// found. A home folder or tool already set in the environment is kept.
+    private static func environment(port: UInt16) -> [String: String] {
         var environment = ProcessInfo.processInfo.environment
         environment["ATHENAEUM_ADDR"] = "127.0.0.1:\(port)"
         environment["ATHENAEUM_STOP_ON_STDIN_CLOSE"] = "1"
-        if environment["ATHENAEUM_DATA_DIR"] == nil {
-            environment["ATHENAEUM_DATA_DIR"] = try dataFolder().path
+        if environment["ATHENAEUM_HOME"] == nil {
+            environment["ATHENAEUM_HOME"] = homeFolder().path
         }
         let tools = ["ATHENAEUM_EBOOK_CONVERT": "ebook-convert", "ATHENAEUM_EBOOK_META": "ebook-meta"]
         for (key, tool) in tools where environment[key] == nil {
@@ -146,13 +149,12 @@ final class Server {
         return environment
     }
 
-    /// Returns the folder holding the library, creating it when missing.
-    private static func dataFolder() throws -> URL {
-        let support = try FileManager.default.url(
-            for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        let folder = support.appendingPathComponent("Athenaeum", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        return folder
+    /// Returns the folder where the server remembers its libraries and
+    /// keeps the first of them. The server creates it when it is missing.
+    private static func homeFolder() -> URL {
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support.appendingPathComponent("Athenaeum", isDirectory: true)
     }
 
     /// Creates an empty log file for this run, replacing the last run's.
@@ -166,27 +168,43 @@ final class Server {
         return file
     }
 
-    /// Finds a loopback port nothing listens on by binding to port zero
-    /// and reading back the port the system chose.
-    private static func freePort() throws -> UInt16 {
-        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
-        guard descriptor >= 0 else {
+    /// Returns the port to serve on: the one used last time when it is
+    /// still free, so what the interface keeps in the browser, such as
+    /// the shelf layout, survives a restart, and otherwise a new one.
+    private static func port() throws -> UInt16 {
+        let last = UInt16(exactly: UserDefaults.standard.integer(forKey: portKey)) ?? 0
+        if last > 0, let port = reserve(last) {
+            return port
+        }
+        guard let port = reserve(0) else {
             throw Failure.noPort
         }
+        UserDefaults.standard.set(Int(port), forKey: portKey)
+        return port
+    }
+
+    /// Checks that a loopback port is free by binding to it and letting
+    /// go, and returns it. Port zero stands for any free port, in which
+    /// case the one the system chose is returned.
+    private static func reserve(_ port: UInt16) -> UInt16? {
+        let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+        guard descriptor >= 0 else {
+            return nil
+        }
         defer { close(descriptor) }
+        var reuse: Int32 = 1
+        setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
         address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        address.sin_port = port.bigEndian
         var length = socklen_t(MemoryLayout<sockaddr_in>.size)
         let bound = withUnsafeMutablePointer(to: &address) { pointer in
             pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { generic in
                 bind(descriptor, generic, length) == 0 && getsockname(descriptor, generic, &length) == 0
             }
         }
-        guard bound else {
-            throw Failure.noPort
-        }
-        return UInt16(bigEndian: address.sin_port)
+        return bound ? UInt16(bigEndian: address.sin_port) : nil
     }
 }

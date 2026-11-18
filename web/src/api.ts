@@ -228,6 +228,46 @@ export interface ImportResult {
   errors: { file: string; error: string }[];
 }
 
+/** A library the application knows: a folder and whether it is open. */
+export interface LibraryEntry {
+  path: string;
+  name: string;
+  state: "open" | "closed" | "missing";
+}
+
+/** Why no library is open. */
+export interface LibraryProblem {
+  path: string;
+  missing: boolean;
+  detail: string;
+}
+
+/** The known libraries and which one is open; current is empty for none. */
+export interface Libraries {
+  home: string;
+  current: string;
+  problem?: LibraryProblem;
+  libraries: LibraryEntry[];
+}
+
+/** What the server found at a typed folder path. */
+export interface FolderCheck {
+  path: string;
+  kind: "library" | "empty" | "other" | "new" | "invalid";
+  detail?: string;
+}
+
+/** An answer in which the server refuses a request, with its reason as a code when it gives one. */
+export class Refusal extends Error {
+  code: string;
+
+  /** Keeps the code beside the message. */
+  constructor(message: string, code = "") {
+    super(message);
+    this.code = code;
+  }
+}
+
 /** Sends a request and returns the decoded JSON response. */
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method };
@@ -241,7 +281,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const text = await response.text();
   const data = text ? JSON.parse(text) : undefined;
   if (!response.ok && !(response.status === 422 && data?.errors)) {
-    throw new Error(data?.error ?? `The server answered ${response.status}.`);
+    throw new Refusal(data?.error ?? `The server answered ${response.status}.`, data?.code);
   }
   return data as T;
 }
@@ -257,6 +297,13 @@ function filesForm(files: File[]): FormData {
 
 /** Every call the interface makes, one function per API endpoint. */
 export const api = {
+  libraries: () => request<Libraries>("GET", "/api/libraries"),
+  openLibrary: (path: string, create: boolean, force: boolean) =>
+    request<Libraries>("POST", "/api/libraries", { path, create, force }),
+  forgetLibrary: (path: string) => request<Libraries>("DELETE", `/api/libraries?${new URLSearchParams({ path })}`),
+  checkFolder: (path: string) => request<FolderCheck>("GET", `/api/libraries/check?${new URLSearchParams({ path })}`),
+  suggestFolders: (path: string) => request<string[]>("GET", `/api/libraries/folders?${new URLSearchParams({ path })}`),
+
   system: () => request<SystemInfo>("GET", "/api/system"),
   settings: () => request<Settings>("GET", "/api/settings"),
   saveSettings: (settings: Partial<Settings>) => request<Settings>("PUT", "/api/settings", settings),

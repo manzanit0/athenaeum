@@ -1,10 +1,11 @@
 import AppKit
 
 /// The app: one window showing the web interface of a server it starts
-/// when it opens and stops when it quits.
+/// when it opens and stops when it quits. Which library is open, and
+/// where libraries are kept, is the interface's business, not the app's.
 @main
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// The name shown in the menu bar and the window title.
     private static let name = "Athenaeum"
 
@@ -39,22 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let window = makeWindow()
         self.window = window
         NSApp.activate(ignoringOtherApps: true)
-        do {
-            let server = try Server()
-            self.server = server
-            server.onUnexpectedExit = { [weak self] in
-                let failure = Server.Failure.stopped(server.logTail())
-                self?.fail("The server behind \(AppDelegate.name) stopped", failure)
+        Task {
+            do {
+                try await start(in: window)
+            } catch {
+                fail("\(AppDelegate.name) could not start", error.localizedDescription)
             }
-            Task { await self.show(server, in: window) }
-        } catch {
-            fail("\(AppDelegate.name) could not start", error)
         }
-    }
-
-    /// Quits when the window closes, since the app is that window.
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
     }
 
     /// Stops the server before the app exits.
@@ -62,13 +54,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         server?.stop()
     }
 
-    /// Waits for the server and puts the interface in the window.
-    private func show(_ server: Server, in window: NSWindow) async {
-        do {
-            try await server.waitUntilReady()
-        } catch {
-            fail("\(AppDelegate.name) could not start", error)
-            return
+    /// Quits when the window closes, since the app is that window.
+    func windowWillClose(_ notification: Notification) {
+        NSApp.terminate(nil)
+    }
+
+    /// Starts the server, waits for it and puts its interface in window.
+    private func start(in window: NSWindow) async throws {
+        let server = try Server()
+        self.server = server
+        try await server.waitUntilReady()
+        server.onUnexpectedExit = { [weak self] in
+            self?.fail("The server behind \(AppDelegate.name) stopped", server.logTail())
         }
         let browser = Browser(home: server.url)
         self.browser = browser
@@ -78,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Creates the window with a line of text shown while the server
-    /// reads the library.
+    /// starts.
     private func makeWindow() -> NSWindow {
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: AppDelegate.firstSize),
@@ -87,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = AppDelegate.name
         window.minSize = AppDelegate.smallestSize
         window.isReleasedWhenClosed = false
+        window.delegate = self
         window.contentView = waitingView()
         window.center()
         window.setFrameAutosaveName("Library")
@@ -109,12 +107,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Says what went wrong, where the log is, and quits.
-    private func fail(_ message: String, _ error: Error) {
+    private func fail(_ message: String, _ detail: String) {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = message
-        let log = server.map { "The full log is at \($0.logFile.path)." }
-        alert.informativeText = [error.localizedDescription, log]
+        alert.informativeText = [detail, server.map { "The full log is at \($0.logFile.path)." }]
             .compactMap { $0 }
             .joined(separator: "\n\n")
         alert.runModal()

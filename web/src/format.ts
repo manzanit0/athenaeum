@@ -60,6 +60,11 @@ export function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
+/** Writes what the server gave as a reason as a sentence: capital first, full stop last. */
+export function sentence(text: string): string {
+  return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}.` : "";
+}
+
 /** Returns the message of a thrown value. */
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

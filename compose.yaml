@@ -18,7 +18,8 @@ services:
       # The same ./data folder `go run ./...` uses, so the container shows
       # the local library and it survives every rebuild. SQLite cannot
       # lock across the host and the container, so do not run both
-      # against it at once.
+      # against it at once. A library opened in the interface is named
+      # by its path inside the container: mount its folder here too.
       - ./data:/data
     develop:
       watch:

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/manzanit0/athenaeum/internal/convert"
@@ -56,6 +57,14 @@ type Server struct {
 	Version string
 	// jobs tracks the running background jobs.
 	jobs sync.WaitGroup
+	// running counts the running background jobs.
+	running atomic.Int32
+	// lifeOnce guards the creation of life.
+	lifeOnce sync.Once
+	// life is the context the background jobs run in.
+	life context.Context
+	// end cancels life.
+	end context.CancelFunc
 	// progress holds how far the running jobs that report it have come,
 	// by job ID.
 	progress sync.Map
@@ -67,6 +76,11 @@ type Server struct {
 
 // Handler returns the HTTP handler serving the API and the web interface.
 func (s *Server) Handler() http.Handler {
+	return logRequests(s.routes())
+}
+
+// routes returns the handler of every endpoint, without request logging.
+func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", s.health)
 	mux.HandleFunc("GET /api/system", s.system)
@@ -110,12 +124,33 @@ func (s *Server) Handler() http.Handler {
 		writeError(w, http.StatusNotFound, "no such endpoint")
 	})
 	mux.Handle("/", s.ui())
-	return logRequests(mux)
+	return mux
 }
 
 // Wait blocks until the running background jobs have finished.
 func (s *Server) Wait() {
 	s.jobs.Wait()
+}
+
+// Busy reports whether a background job is running.
+func (s *Server) Busy() bool {
+	return s.running.Load() > 0
+}
+
+// Stop cuts the running background jobs short and waits for them to
+// record that. The server starts no useful job afterwards.
+func (s *Server) Stop() {
+	s.lifetime()
+	s.end()
+	s.jobs.Wait()
+}
+
+// lifetime returns the context background jobs run in, which Stop ends.
+func (s *Server) lifetime() context.Context {
+	s.lifeOnce.Do(func() {
+		s.life, s.end = context.WithCancel(context.Background())
+	})
+	return s.life
 }
 
 // statusRecorder remembers the status code written to a response.
@@ -146,23 +181,28 @@ func logRequests(next http.Handler) http.Handler {
 	})
 }
 
-// ui serves the embedded web interface, answering unknown paths with the
-// application shell so client side routes survive a reload.
+// ui serves the embedded web interface.
 func (s *Server) ui() http.Handler {
-	files := http.FileServerFS(s.UI)
+	return serveUI(s.UI)
+}
+
+// serveUI serves the web interface in ui, answering unknown paths with
+// the application shell so client side routes survive a reload.
+func serveUI(ui fs.FS) http.Handler {
+	files := http.FileServerFS(ui)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
 		if name == "" {
 			name = "index.html"
 		}
-		if info, err := fs.Stat(s.UI, name); err == nil && !info.IsDir() {
+		if info, err := fs.Stat(ui, name); err == nil && !info.IsDir() {
 			if strings.HasPrefix(name, "assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 			}
 			files.ServeHTTP(w, r)
 			return
 		}
-		shell, err := fs.ReadFile(s.UI, "index.html")
+		shell, err := fs.ReadFile(ui, "index.html")
 		if err != nil {
 			http.Error(w, "The web interface is not built. Run `task web`.", http.StatusNotFound)
 			return
@@ -353,8 +393,10 @@ func (s *Server) startTrackedJob(kind, title string, bookID *int64,
 	if err := s.Store.CreateJob(job); err != nil {
 		return nil, err
 	}
+	s.running.Add(1)
 	s.jobs.Go(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), jobTimeout)
+		defer s.running.Add(-1)
+		ctx, cancel := context.WithTimeout(s.lifetime(), jobTimeout)
 		defer cancel()
 		defer s.progress.Delete(job.ID)
 		result, err := work(ctx, func(progress any) { s.progress.Store(job.ID, progress) })

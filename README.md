@@ -29,6 +29,10 @@ and narrow it by category, language and format.
 Categories are paths such as `History / Military`, so a category opens
 to the ones below it. Many books can be filed at once.
 
+A library is a folder, and there can be several. The control under the
+application's name says which one is open and switches to the others;
+see [Libraries](#libraries).
+
 ### Lets you fix a book's details and files
 
 Every field and the cover are editable, and the files on disk are
@@ -66,7 +70,7 @@ changes.
 ## Get started
 
 ```sh
-go run ./...          # http://localhost:8080, data in ./data
+go run ./...          # http://localhost:8080, first library in ./data
 ```
 
 or with Docker, which also brings calibre:
@@ -86,8 +90,12 @@ task macos:app        # builds bin/Athenaeum.app
 open bin/Athenaeum.app
 ```
 
-The app keeps its library in `~/Library/Application Support/Athenaeum`;
-see [macOS app](#macos-app).
+The app starts with a library in
+`~/Library/Application Support/Athenaeum`; see [macOS app](#macos-app).
+
+However it runs, the library it starts with is only the first one:
+others are added by folder from the library menu under the
+application's name; see [Libraries](#libraries).
 
 There is no sign-in: the app is meant for one person on a trusted network.
 
@@ -98,10 +106,10 @@ Everything is set through environment variables.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `ATHENAEUM_ADDR` | `:8080` | Listen address. |
-| `ATHENAEUM_DATA_DIR` | `data` | Holds `athenaeum.db`, the `library/` folder and `cache/`, which is safe to delete. |
+| `ATHENAEUM_HOME` | `data` | Where the list of libraries is kept, and the folder of the first library. Which library is open is chosen in the interface, not here. |
 | `ATHENAEUM_KINDLE_PATH` | detect | Kindle mount point. Also editable in the interface. |
 | `ATHENAEUM_MEGA_FOLDER` | none | MEGA folder to sync with. Also editable in the interface. |
-| `ATHENAEUM_SECRET` | none | Passphrase protecting the MEGA session kept in the database. Without it, the key is the file `secret.key` in the data folder. |
+| `ATHENAEUM_SECRET` | none | Passphrase protecting the MEGA session kept in the database. Without it, the key is the file `secret.key` in each library's folder. |
 | `ATHENAEUM_EBOOK_CONVERT` | `ebook-convert` | calibre's converter. |
 | `ATHENAEUM_EBOOK_META` | `ebook-meta` | calibre's metadata tool. |
 | `ATHENAEUM_CONVERTER` | `native` | `calibre` hands calibre the conversions the built in converters would do, when it is installed. |
@@ -150,9 +158,48 @@ Everything is set through environment variables.
 - Subjects embedded in imported files are kept as they are and can be tidied
   there.
 
+### Libraries
+
+A library is a folder that holds everything about one collection:
+`athenaeum.db`, the `library/` folder of books, the key protecting its
+MEGA session, and `cache/`, which is safe to delete. One library is open
+at a time.
+
+- **The library menu**: the control under the application's name shows
+  the open library. It opens a menu of the known libraries, where
+  choosing one switches to it, and "Add or remove libraries" below them
+  leads to the page for the rest. The sections under it belong to the
+  library it names. The first library is called "Default library";
+  the others go by the name of their folder.
+- **Adding a library**: type its folder's whole path; `~` stands for the
+  home folder. The page cannot browse the computer the server runs on,
+  so the server suggests the folders that could come next and says what
+  is at the path before anything happens. A folder with a library is
+  opened; an empty one, or one that does not exist yet, starts a new
+  library; a folder with other files starts a library beside them and
+  leaves them alone.
+- **Switching** closes one library and opens the other without a
+  restart. The new one is opened first, so a folder that will not open
+  leaves the current library in place. When a sync, conversion or
+  transfer is running, the interface asks before stopping it.
+- **Remove from list** forgets a library and leaves its folder alone.
+  Typing the path again brings it back.
+- **A folder that has gone missing**, as with an unplugged drive, is
+  never created again. The library is listed as not found; if it was the
+  open one, the application starts with no library open and shows this
+  page alone until one is opened or the folder is back.
+- Each library has its own MEGA sign-in, MEGA folder and Kindle
+  location, because those settings live in its database.
+- The list is the file `libraries.json` in the home folder
+  (`ATHENAEUM_HOME`), which is also the first library.
+- Do not open the same folder from two places at once, for example the
+  macOS app and `go run ./...`, or a container and the host.
+- In Docker, paths are the container's: mount the folders libraries
+  should live in.
+
 ### Library folder
 
-Books live in `library/` inside the data folder, one folder per first
+Books live in `library/` inside the library's folder, one folder per first
 author, with the files of a book side by side:
 
 ```
@@ -261,7 +308,7 @@ account, and the two-factor code if the account has one.
   of the database.
 - The key is not in the database. With `ATHENAEUM_SECRET` set it is
   derived from that passphrase; otherwise it is the file `secret.key`
-  in the data folder, readable by its owner only. A copy of the
+  in the library's folder, readable by its owner only. A copy of the
   database alone cannot open the session; a copy of the whole data
   folder can, unless the passphrase is used.
 - Signing out forgets the session and ends it on MEGA. A session MEGA
@@ -306,10 +353,14 @@ per file, not within a file.
 shows the web interface in a `WKWebView` window and runs the server,
 unchanged, as a child process.
 
-- The server listens on `127.0.0.1`, on a free port picked at launch, so
-  only this Mac can reach it.
-- The library lives in `~/Library/Application Support/Athenaeum`, and
-  the server's output goes to `~/Library/Logs/Athenaeum/server.log`.
+- The server listens on `127.0.0.1`, so only this Mac can reach it. The
+  port is picked the first time and kept while it stays free, so what
+  the interface remembers in the browser, such as the shelf layout,
+  survives a restart.
+- The first library, and the list of the others, live in
+  `~/Library/Application Support/Athenaeum`. Other folders are opened in
+  the interface like anywhere else; see [Libraries](#libraries). The
+  server's output goes to `~/Library/Logs/Athenaeum/server.log`.
 - calibre is used from `/Applications/calibre.app` when it is installed,
   and the Kindle is found at `/Volumes/Kindle` as usual.
 - Quitting the app or closing its window stops the server. So does the
@@ -341,10 +392,17 @@ things are delegated:
 
 The interface uses nothing but this API. Errors are
 `{"error": "message"}`. Long operations return `202` with a job to poll.
+Everything below the libraries endpoints belongs to the open library and
+answers `503` with `"code": "no_library"` when none is open.
 
 | Method and path | Purpose |
 | --- | --- |
-| `GET /api/health` | Liveness check. |
+| `GET /api/health` | Liveness check. Answers with or without a library open. |
+| `GET /api/libraries` | The known `libraries`, each with its `path`, `name` and `state` (`open`, `closed` or `missing`), the `current` path (empty when none is open), the `home` path and, when the library that should be open is not, the `problem`. |
+| `POST /api/libraries` | `{"path": "/books/novels", "create": false, "force": false}`; opens the library in that folder and closes the open one. `create` allows starting a library in a folder that holds other files or does not exist yet; `force` allows cutting a running job short, without which the answer is `409` with `"code": "busy"`. |
+| `DELETE /api/libraries?path=` | Removes a library from the list and leaves its folder alone. `409` for the open library. |
+| `GET /api/libraries/check?path=` | What is at a typed path, changing nothing: `kind` is `library`, `empty`, `other`, `new` or `invalid`, with the tidied `path` and, when invalid, the `detail`. |
+| `GET /api/libraries/folders?path=` | The folders a typed path could go on to name. |
 | `GET /api/system` | Version, supported formats, whether calibre is available (`can_convert`) and what converts without it (`native_conversions`). |
 | `GET /api/settings`, `PUT /api/settings` | `mega_folder` and `kindle_path`. |
 | `GET /api/books?q=&sort=&order=` | List and search. `sort` is `title`, `author`, `published`, `publisher`, `language`, `added` or `updated`, with `order=desc` to reverse it; books without the property come last either way. Narrow with `tag` (a category, which also matches the categories below it), `language` (`en` also matches `en-US`) and `format`, each of which may be repeated to accept any of several values, with `untagged=true` to let in books without tags and with `author`. |
@@ -402,7 +460,8 @@ code changes; see `compose.yaml`.
 
 ```
 main.go              wiring and configuration
-internal/api         HTTP handlers, background jobs
+internal/home        list of libraries, checks on a typed folder path
+internal/api         HTTP handlers, background jobs, switching libraries
 internal/library     author folders on disk, rescan, adoption of loose files
 internal/meta        EPUB, MOBI and PDF metadata parsers
 internal/store       SQLite index, settings, job history
