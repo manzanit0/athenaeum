@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+@theme {
+  --color-paper: #e9ece7;
+  --color-sheet: #f6f7f4;
+  --color-ink: #1b211e;
+  --color-soft: #58625c;
+  --color-rule: #c8cec6;
+  --color-ribbon: #b3203a;
+  --color-ribbon-deep: #8c1429;
+  --color-leaf: #2c6646;
+  --font-display: "Literata Variable", Georgia, "Times New Roman", serif;
+  --font-sans: "Hanken Grotesk Variable", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ribbon);
+    outline-offset: 2px;
+  }
+
+  dialog::backdrop {
+    background-color: rgb(27 33 30 / 0.45);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+.cover-action .cover-scrim {
+  opacity: 0;
+}
+
+@media (hover: hover) {
+  .cover-action .cover-cue,
+  .cover-action .cover-scrim {
+    opacity: 0;
+    transition: opacity 150ms ease-out;
+  }
+
+  .cover-action:hover .cover-cue,
+  .cover-action:focus-visible .cover-cue,
+  .cover-action:hover .cover-scrim,
+  .cover-action:focus-visible .cover-scrim {
+    opacity: 1;
+  }
+}
+
+.toast {
+  animation: toast-in 160ms ease-out;
+}

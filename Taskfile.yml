@@ -1,0 +1,109 @@
+# Taskfile for Athenaeum, see https://taskfile.dev.
+version: "3"
+
+vars:
+  BINARY: bin/athenaeum
+  IMAGE: athenaeum:latest
+  PORT: "8080"
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  web:
+    desc: Build the web interface into web/dist with the local npm
+    dir: web
+    # web/dist is committed because go:embed needs it at compile time, so a
+    # fresh checkout runs with `go run ./...` alone. Rebuild it after every
+    # change under web/src.
+    cmds:
+      - npm install
+      - npm run build
+    sources:
+      - package.json
+      - package-lock.json
+      - vite.config.ts
+      - index.html
+      - src/**/*
+    generates:
+      - dist/**/*
+
+  web:docker:
+    desc: Build the web interface into web/dist inside Docker
+    # For machines where npm cannot reach its registry. The web-export
+    # stage holds only dist/ and package-lock.json, so exporting it into
+    # web/ refreshes both and touches nothing else.
+    cmds:
+      - rm -rf web/dist
+      - docker build --target web-export --output type=local,dest=web .
+
+  build:
+    desc: Build the server, embedding whatever is in web/dist
+    cmds:
+      - go build -o {{.BINARY}} .
+
+  run:
+    desc: Run the server on :{{.PORT}} with data in ./data
+    env:
+      ATHENAEUM_ADDR: ":{{.PORT}}"
+    cmds:
+      - go run ./...
+
+  dev:
+    desc: Front-end dev server with hot reload, proxying /api to :8080
+    dir: web
+    cmds:
+      - npm run dev
+
+  test:
+    desc: Run the Go tests
+    cmds:
+      - go test ./...
+
+  e2e:
+    desc: Run the Playwright journeys against the real server with fake tools
+    dir: e2e
+    # The suite drives the installed Google Chrome so no browser download
+    # is needed. Set ATHENAEUM_E2E_CHANNEL to use another browser channel.
+    cmds:
+      - npm install
+      - npx playwright test
+
+  lint:
+    desc: Check formatting and vet the Go code
+    cmds:
+      - test -z "$(gofmt -l .)"
+      - go vet ./...
+
+  clean:
+    desc: Remove build output, test scratch files and installed packages
+    cmds:
+      - rm -rf bin e2e/.work e2e/test-results e2e/node_modules web/node_modules
+
+  docker:build:
+    desc: Build the Docker image with calibre included
+    cmds:
+      - docker build -t {{.IMAGE}} .
+
+  docker:watch:
+    desc: Run in Docker on :9000, rebuilding on every code change
+    # Compose Watch rebuilds the image and replaces the container when a
+    # source file changes; see compose.yaml for what is watched and for
+    # the port, which ATHENAEUM_PORT overrides.
+    cmds:
+      - docker compose up --watch
+
+  docker:run:
+    desc: Run the image on :{{.PORT}}, keeping data in the athenaeum-data volume
+    # Mount the Kindle by adding `-v /Volumes/Kindle:/kindle`. Sign in to
+    # MEGA on the sync page. ATHENAEUM_SECRET is forwarded when set, so
+    # the key protecting the MEGA session stays out of the data volume.
+    cmds:
+      - >-
+        docker run --rm --name athenaeum -p {{.PORT}}:8080
+        -e ATHENAEUM_SECRET
+        -v athenaeum-data:/data
+        {{.IMAGE}}

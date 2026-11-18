@@ -1,0 +1,37 @@
+# Development loop in Docker: `docker compose up --watch` builds the image,
+# runs it, and rebuilds and replaces the container whenever the code changes.
+services:
+  athenaeum:
+    build:
+      context: .
+    # The same tag as `task docker:build`, so both produce one image.
+    image: athenaeum:latest
+    ports:
+      # Served on host port 9000, which can be moved with ATHENAEUM_PORT.
+      # Inside the container the server keeps the image's port, 8080.
+      - "${ATHENAEUM_PORT:-9000}:8080"
+    environment:
+      # Forwarded only when set on the host, so the key protecting the MEGA
+      # session can stay out of the data volume.
+      - ATHENAEUM_SECRET
+    volumes:
+      # The same ./data folder `go run ./...` uses, so the container shows
+      # the local library and it survives every rebuild. SQLite cannot
+      # lock across the host and the container, so do not run both
+      # against it at once.
+      - ./data:/data
+    develop:
+      watch:
+        # The server is a compiled binary with the web interface embedded,
+        # so any change to the Go or React sources needs a new image. What
+        # .dockerignore lists (data, e2e, web/dist, web/node_modules) is
+        # already left out; the entries below never reach the image either.
+        - action: rebuild
+          path: .
+          ignore:
+            - athenaeum
+            - .claude/
+            - README.md
+            - Taskfile.yml
+            - compose.yaml
+            - "**/*_test.go"

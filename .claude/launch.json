@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "athenaeum-e2e",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["e2e/start-server.sh"],
+      "port": 8091
+    }
+  ]
+}

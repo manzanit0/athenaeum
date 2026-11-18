@@ -1,0 +1,22 @@
+#!/bin/sh
+# Stand-in for calibre's ebook-convert used by the tests: it copies the
+# input to the output so conversions finish instantly and offline.
+if [ "$#" -lt 2 ]; then
+    echo "usage: ebook-convert input_file output_file [options]" >&2
+    exit 1
+fi
+if [ -n "$FAKE_CONVERT_LOG" ]; then
+    printf '%s\n' "$*" >> "$FAKE_CONVERT_LOG"
+fi
+# Asked for an EPUB from another format, it answers with the file named
+# by FAKE_CONVERT_EPUB when that is set, so previews of converted books
+# have a real EPUB to open.
+case "$2" in
+*.epub)
+    if [ -n "$FAKE_CONVERT_EPUB" ] && [ "${1##*.}" != "epub" ]; then
+        cp "$FAKE_CONVERT_EPUB" "$2"
+        exit
+    fi
+    ;;
+esac
+cp "$1" "$2"

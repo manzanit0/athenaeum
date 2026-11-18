@@ -1,0 +1,21 @@
+# Runtime data and build output
+/data/
+/bin/
+
+# Node packages
+web/node_modules/
+e2e/node_modules/
+
+# End-to-end test scratch files and reports
+e2e/.work/
+e2e/test-results/
+e2e/playwright-report/
+
+# Fake mega-cli built by the Go tests
+testdata/bin/mega
+
+# Note: web/dist/ is committed on purpose so `go run ./...` works on a
+# fresh checkout (go:embed needs it at compile time). Rebuild it with
+# `task web` or `task web:docker`.
+
+athenaeum
