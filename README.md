@@ -1,11 +1,69 @@
 # Athenaeum
 
-A self-hosted ebook library: import books, fix their details, convert
-them between formats, manage what is on your Kindle and keep a copy of
-everything in a MEGA folder. One Go binary serves a JSON API and the
-React interface embedded in it.
+A self-hosted ebook library for one person: import your books, fix their
+details, read them in the browser, convert them between formats, manage
+what is on your Kindle and keep a copy of everything in a MEGA folder.
 
-## Run it
+![The library as a shelf of covers, with categories, languages and formats to narrow it by](docs/screenshots/library.png)
+
+It is one Go binary that serves a JSON API and the React interface
+embedded in it. The screenshots show a made-up sample library.
+
+- [What it does](#what-it-does)
+- [Get started](#get-started)
+- [How it works](#how-it-works)
+- [API](#api)
+- [Development](#development)
+
+## What it does
+
+### Keeps your books in one browsable library
+
+Upload or drag in EPUB, MOBI, AZW3, PDF and more; title, author, cover
+and the other details are read from the file where it carries them.
+Browse the shelf as a grid of covers or as a sortable list, search it,
+and narrow it by category, language and format.
+
+![The list view narrowed to the Fiction category, with the categories below it](docs/screenshots/browse.png)
+
+Categories are paths such as `History / Military`, so a category opens
+to the ones below it. Many books can be filed at once.
+
+### Lets you fix a book's details and files
+
+Every field and the cover are editable, and the files on disk are
+renamed to match. A book holds one file per format; convert between
+them from its page. EPUB to AZW3 and back, and PDF to EPUB or AZW3, are
+built in; with calibre installed, many more.
+
+![A book's page: its details, categories and files, with the conversion below](docs/screenshots/book.png)
+
+### Opens books in the browser
+
+Click the cover on a book's page to read it. EPUB opens section by
+section with its table of contents; PDF and TXT open as they are;
+Kindle formats are unpacked first.
+
+![A book open in the reader, with its table of contents and text size controls](docs/screenshots/reader.png)
+
+### Manages a Kindle
+
+With the Kindle plugged in as a USB drive, see what is on it, remove
+books, copy device books into the library and send library books. A
+book with no Kindle format is converted to AZW3 on the way.
+
+![The books on the Kindle and the library books that can be sent to it](docs/screenshots/kindle.png)
+
+### Keeps a copy on MEGA
+
+Sign in to MEGA in the app and sync the library with a folder there:
+both ways, upload only or download only. A preview says, book by book,
+what would be added, updated and removed on each side before anything
+changes.
+
+<img src="docs/screenshots/sync.png" width="569" alt="A sync preview: books to add, update and remove on MEGA and in the library, and the button that makes those changes">
+
+## Get started
 
 ```sh
 go run ./...          # http://localhost:8080, data in ./data
@@ -23,20 +81,7 @@ docker run --rm --name athenaeum -p 8080:8080 \
 
 There is no sign-in: the app is meant for one person on a trusted network.
 
-## What it does
-
-| Feature | How |
-| --- | --- |
-| Import | Upload or drag in EPUB, MOBI, AZW3, PDF and more. Title, authors, series, publisher, ISBN, tags and cover are read from EPUB and MOBI/AZW files; title, author and keywords from PDF. Anything else falls back to a `Title - Author.ext` file name. |
-| Edit details | Every field and the cover are editable. Folders and files are renamed to match. The publication date is a year, a year and month or a full day, entered as a typed year, a month chosen by name and a day; it is kept as `2019`, `2019-03` or `2019-03-12`, and dates in imported files are brought to that form. |
-| Browse | Books are filed under categories, which are the book's tags written as a path such as `History / Military`. The library page lists the top-level categories, the ones with the most books first and ten at most before a "show more"; each opens to the categories below it, by itself when it is ticked, and ticking one also shows the books below it. Categories, language and format are tick boxes with the number of books each leads to: ticking several values of one kind shows the books with any of them, the kinds combine, and a value that leads nowhere is dimmed. The choice is kept in the address of the page. The shelf shows as a grid of covers or as a list with title, author, publication date, publisher, categories and files, which the headings of its columns sort. The shelf is sorted by one property in one direction: "Sort by" and the headings of the list name the same properties and change the same order, and dates start with the newest. The library page uses the whole width of the window; a wide list also shows the language and the day each book was added. |
-| Categorise | A book takes up to three categories, the most specific ones: filing it under `History / Military` takes it out of `History`. Its page offers the categories already in use and a field for a new one. On the library page many books are filed, or taken out of a category, at once. A page lists every category to rename it, merge it into another or remove it. Subjects embedded in imported files are kept as they are and can be tidied there. |
-| Convert | EPUB to AZW3 and back, and PDF to EPUB or AZW3, with the converters built into the application; see [Conversion](#conversion). With calibre installed, any format its `ebook-convert` can read, to AZW3, DOCX, EPUB, FB2, HTMLZ, MOBI, PDF, RTF or TXT. The library details and cover are written into the result. |
-| Read | Click the cover on a book's page to read it in the browser. EPUB opens section by section with its table of contents; PDF and TXT open as they are. Kindle books in KF8 (every AZW3, and the MOBI files that carry it) are unpacked to EPUB first by the application itself; older MOBI files and every other format need calibre for that. The result is kept in `cache/preview/` and never added to the library. |
-| Kindle | List and delete the books on the device, copy device books into the library, and send library books. A book with no Kindle format is converted to AZW3 first, which needs no calibre for EPUB and PDF books. |
-| MEGA sync | Two-way sync, upload only or download only. A preview lists, for MEGA and for the library, the books it would add, update and remove, with what changes about each and how much data that transfers, and ends with the button that makes those changes; the finished sync lists what it did the same way; a running sync shows how many changes and bytes are done and the file in hand. |
-
-## Configuration
+### Configuration
 
 Everything is set through environment variables.
 
@@ -51,27 +96,83 @@ Everything is set through environment variables.
 | `ATHENAEUM_EBOOK_META` | `ebook-meta` | calibre's metadata tool. |
 | `ATHENAEUM_CONVERTER` | `native` | `calibre` hands calibre the conversions the built in converters would do, when it is installed. |
 
-## External tools
+## How it works
 
-The Go standard library covers the server, the EPUB/MOBI/PDF metadata
-parsers, the Kindle file handling and the built in converters. Three
-things are delegated:
+### Importing and editing
 
-- **SQLite**: `modernc.org/sqlite`, a pure Go driver, so the binary stays
-  static and builds without a C toolchain.
-- **calibre**: `ebook-convert` does the conversions the built in
-  converters do not cover and prepares previews of Kindle formats;
-  `ebook-meta` writes details into files sent to the Kindle and extracts
-  covers the built-in parsers cannot. Without calibre everything else
-  still works and the interface only offers the built in conversions.
-- **[mega-cli](https://github.com/manzanit0/mega-cli)**: its Go packages
-  sign in to MEGA and do the transfers. They are compiled in, so no
-  `mega` program needs to be installed.
+- Upload or drag in EPUB, MOBI, AZW3, PDF and more.
+- Title, authors, series, publisher, ISBN, tags and cover are read from EPUB and
+  MOBI/AZW files; title, author and keywords from PDF.
+- Anything else falls back to a `Title - Author.ext` file name.
+- Every field and the cover are editable. Folders and files are renamed to
+  match.
+- The publication date is a year, a year and month or a full day, entered as a
+  typed year, a month chosen by name and a day; it is kept as `2019`, `2019-03`
+  or `2019-03-12`, and dates in imported files are brought to that form.
 
-## Conversion
+### Browsing and categories
 
-Three conversions are built in and need nothing installed. Their
-output lands in the book's file list like any other conversion.
+- Books are filed under categories, which are the book's tags written as a path
+  such as `History / Military`.
+- The library page lists the top-level categories, the ones with the most books
+  first and ten at most before a "show more"; each opens to the categories below
+  it, by itself when it is ticked, and ticking one also shows the books below
+  it.
+- Categories, language and format are tick boxes with the number of books each
+  leads to: ticking several values of one kind shows the books with any of them,
+  the kinds combine, and a value that leads nowhere is dimmed.
+- The choice is kept in the address of the page.
+- The shelf shows as a grid of covers or as a list with title, author,
+  publication date, publisher, categories and files, which the headings of its
+  columns sort.
+- The shelf is sorted by one property in one direction: "Sort by" and the
+  headings of the list name the same properties and change the same order, and
+  dates start with the newest.
+- The library page uses the whole width of the window; a wide list also shows
+  the language and the day each book was added.
+- A book takes up to three categories, the most specific ones: filing it under
+  `History / Military` takes it out of `History`.
+- A book's page offers the categories already in use and a field for a new
+  one.
+- On the library page many books are filed, or taken out of a category, at once.
+- A page lists every category to rename it, merge it into another or remove it.
+- Subjects embedded in imported files are kept as they are and can be tidied
+  there.
+
+### Library folder
+
+Books live in `library/` inside the data folder, one folder per first
+author, with the files of a book side by side:
+
+```
+library/
+  Ursula K. Le Guin/
+    The Dispossessed - Ursula K. Le Guin.epub
+    The Dispossessed - Ursula K. Le Guin.azw3
+  _athenaeum/
+    <id>.json    details of one book and the list of its files
+    <id>.jpg     its cover
+```
+
+- A second book with the same title and author gets ` (2)` in its name.
+- The folder is read on start-up, after every download from MEGA and on
+  `POST /api/library/rescan`.
+- An ebook found anywhere in the folder that belongs to no book becomes
+  one: its details are read from the file, files that share a folder and
+  a name become formats of one book, and the files are moved under the
+  author. Other files are left where they are.
+- A book whose files are all gone is dropped from the database. Its
+  details file stays in `_athenaeum/`.
+- Folders written by earlier versions (`Author/Title (id)/metadata.json`)
+  are converted in place and keep their identity.
+
+### Conversion
+
+Three conversions are built in and need nothing installed: EPUB to AZW3
+and back, and PDF to EPUB. With calibre installed, any format its
+`ebook-convert` can read converts to AZW3, DOCX, EPUB, FB2, HTMLZ, MOBI,
+PDF, RTF or TXT. Either way the result lands in the book's file list
+with the library details and cover written into it.
 
 **EPUB to AZW3.** Every chapter is kept as it is and repackaged as KF8,
 the format inside AZW3 files: links between chapters, footnote jumps,
@@ -113,7 +214,16 @@ wrote, kept in `internal/azw3/testdata`. The format references were the
 [MobileRead wiki](https://wiki.mobileread.com/wiki/KF8), calibre's
 source and [leotaku/mobi](https://github.com/leotaku/mobi).
 
-## Kindle
+### Reading
+
+Click the cover on a book's page to read it in the browser. EPUB opens section
+by section with its table of contents; PDF and TXT open as they are. Kindle
+books in KF8 (every AZW3, and the MOBI files that carry it) are unpacked to
+EPUB first by the application itself; older MOBI files and every other format
+need calibre for that. The result is kept in `cache/preview/` and never added
+to the library.
+
+### Kindle
 
 The Kindle must be mounted as a USB drive. Without a configured path the
 app looks in `/Volumes/Kindle`, `/kindle`, `/mnt/kindle`, `/media/Kindle`,
@@ -126,34 +236,10 @@ book (`.sdr` folder, `.mbp`, `.apnx` and friends) follow the `KINDLE2`
 driver in calibre's
 [`devices/kindle/driver.py`](https://github.com/kovidgoyal/calibre/blob/master/src/calibre/devices/kindle/driver.py).
 
-## Library folder
+A book sent without a Kindle format is converted to AZW3 first, which
+needs no calibre for EPUB and PDF books.
 
-Books live in `library/` inside the data folder, one folder per first
-author, with the files of a book side by side:
-
-```
-library/
-  Ursula K. Le Guin/
-    The Dispossessed - Ursula K. Le Guin.epub
-    The Dispossessed - Ursula K. Le Guin.azw3
-  _athenaeum/
-    <id>.json    details of one book and the list of its files
-    <id>.jpg     its cover
-```
-
-- A second book with the same title and author gets ` (2)` in its name.
-- The folder is read on start-up, after every download from MEGA and on
-  `POST /api/library/rescan`.
-- An ebook found anywhere in the folder that belongs to no book becomes
-  one: its details are read from the file, files that share a folder and
-  a name become formats of one book, and the files are moved under the
-  author. Other files are left where they are.
-- A book whose files are all gone is dropped from the database. Its
-  details file stays in `_athenaeum/`.
-- Folders written by earlier versions (`Author/Title (id)/metadata.json`)
-  are converted in place and keep their identity.
-
-## MEGA sync
+### MEGA sync
 
 Sign in on the sync page with the email and password of the MEGA
 account, and the two-factor code if the account has one.
@@ -202,6 +288,23 @@ permanent.
 Every upload and download is planned first, which gives the number of
 changes and their size. Progress then advances as each change starts,
 per file, not within a file.
+
+### External tools
+
+The Go standard library covers the server, the EPUB/MOBI/PDF metadata
+parsers, the Kindle file handling and the built in converters. Three
+things are delegated:
+
+- **SQLite**: `modernc.org/sqlite`, a pure Go driver, so the binary stays
+  static and builds without a C toolchain.
+- **calibre**: `ebook-convert` does the conversions the built in
+  converters do not cover and prepares previews of Kindle formats;
+  `ebook-meta` writes details into files sent to the Kindle and extracts
+  covers the built-in parsers cannot. Without calibre everything else
+  still works and the interface only offers the built in conversions.
+- **[mega-cli](https://github.com/manzanit0/mega-cli)**: its Go packages
+  sign in to MEGA and do the transfers. They are compiled in, so no
+  `mega` program needs to be installed.
 
 ## API
 
@@ -259,7 +362,11 @@ The Go and Playwright tests run the real server against stand-ins: an
 and which plans syncs with the real rules. The Playwright server is built
 with the `fakemega` tag to include it; ordinary builds cannot reach it.
 
-## Layout
+`task docker:watch` runs the app in Docker on port 9000 with the local
+`./data` folder, and rebuilds and replaces the container whenever the
+code changes; see `compose.yaml`.
+
+### Layout
 
 ```
 main.go              wiring and configuration
