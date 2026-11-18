@@ -79,6 +79,16 @@ docker run --rm --name athenaeum -p 8080:8080 \
   athenaeum:latest
 ```
 
+or as a macOS app, in a window of its own instead of a browser tab:
+
+```sh
+task macos:app        # builds bin/Athenaeum.app
+open bin/Athenaeum.app
+```
+
+The app keeps its library in `~/Library/Application Support/Athenaeum`;
+see [macOS app](#macos-app).
+
 There is no sign-in: the app is meant for one person on a trusted network.
 
 ### Configuration
@@ -95,6 +105,7 @@ Everything is set through environment variables.
 | `ATHENAEUM_EBOOK_CONVERT` | `ebook-convert` | calibre's converter. |
 | `ATHENAEUM_EBOOK_META` | `ebook-meta` | calibre's metadata tool. |
 | `ATHENAEUM_CONVERTER` | `native` | `calibre` hands calibre the conversions the built in converters would do, when it is installed. |
+| `ATHENAEUM_STOP_ON_STDIN_CLOSE` | off | `1` stops the server once its standard input closes. The macOS app sets it so the server never outlives the app. |
 
 ## How it works
 
@@ -289,6 +300,26 @@ Every upload and download is planned first, which gives the number of
 changes and their size. Progress then advances as each change starts,
 per file, not within a file.
 
+### macOS app
+
+`task macos:app` builds `bin/Athenaeum.app`: a small Swift program that
+shows the web interface in a `WKWebView` window and runs the server,
+unchanged, as a child process.
+
+- The server listens on `127.0.0.1`, on a free port picked at launch, so
+  only this Mac can reach it.
+- The library lives in `~/Library/Application Support/Athenaeum`, and
+  the server's output goes to `~/Library/Logs/Athenaeum/server.log`.
+- calibre is used from `/Applications/calibre.app` when it is installed,
+  and the Kindle is found at `/Volumes/Kindle` as usual.
+- Quitting the app or closing its window stops the server. So does the
+  app being killed.
+- Downloads ask where to save the file. Links that leave the app, and
+  "open in a new tab", go to the default browser.
+- The app is built for the architecture of the Mac that builds it and is
+  signed ad hoc, so it runs on that Mac but is not ready to hand to
+  someone else. Building it needs `swiftc`, which comes with Xcode.
+
 ### External tools
 
 The Go standard library covers the server, the EPUB/MOBI/PDF metadata
@@ -351,6 +382,7 @@ task e2e        # Playwright journeys, driven through installed Chrome
 task web        # rebuild web/dist with the local npm
 task web:docker # rebuild web/dist inside Docker instead
 task dev        # Vite dev server proxying /api to :8080
+task macos:run  # build bin/Athenaeum.app and open it
 ```
 
 `web/dist` is committed because `go:embed` needs it at compile time;
@@ -385,5 +417,6 @@ internal/device      Kindle storage
 internal/megasync    MEGA sign-in and sync logic over mega-cli's packages
 internal/vault       secrets encrypted in the database
 web/                 React, TypeScript and Tailwind interface
+macos/               Swift shell, Info.plist and icon of the macOS app
 e2e/                 Playwright tests
 ```

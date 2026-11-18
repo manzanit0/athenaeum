@@ -83,6 +83,33 @@ tasks:
     cmds:
       - rm -rf bin e2e/.work e2e/test-results e2e/node_modules web/node_modules
 
+  macos:app:
+    desc: Build bin/Athenaeum.app, a native macOS window around the server
+    # The app is a small Swift shell (macos/Sources) that runs the server
+    # as a child process, so the server is built exactly as `task build`
+    # does and only placed next to the shell inside the bundle. Both are
+    # built for this Mac's architecture and signed ad hoc, which is enough
+    # to run here but not to hand the app to someone else.
+    vars:
+      APP: bin/Athenaeum.app
+    cmds:
+      - rm -rf {{.APP}}
+      - mkdir -p {{.APP}}/Contents/MacOS {{.APP}}/Contents/Resources
+      - go build -o {{.APP}}/Contents/MacOS/athenaeum-server .
+      - >-
+        swiftc -O -parse-as-library
+        -o {{.APP}}/Contents/MacOS/Athenaeum macos/Sources/*.swift
+      - cp macos/Info.plist {{.APP}}/Contents/Info.plist
+      - cp macos/AppIcon.icns {{.APP}}/Contents/Resources/AppIcon.icns
+      - codesign --force --sign - {{.APP}}/Contents/MacOS/athenaeum-server
+      - codesign --force --sign - {{.APP}}
+
+  macos:run:
+    desc: Build Athenaeum.app and open it
+    cmds:
+      - task: macos:app
+      - open bin/Athenaeum.app
+
   docker:build:
     desc: Build the Docker image with calibre included
     cmds:

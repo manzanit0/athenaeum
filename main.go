@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -54,6 +55,10 @@ type config struct {
 	// converter is "native" to use the built in converters where they
 	// apply, or "calibre" to prefer calibre whenever it is installed.
 	converter string
+	// stopOnStdinClose stops the server once its standard input closes,
+	// so a program that starts it, such as the macOS app, takes it down
+	// when it exits, however it exits.
+	stopOnStdinClose bool
 }
 
 // env returns the value of the environment variable key, or fallback when
@@ -76,6 +81,8 @@ func loadConfig() config {
 		ebookConvert: env("ATHENAEUM_EBOOK_CONVERT", "ebook-convert"),
 		ebookMeta:    env("ATHENAEUM_EBOOK_META", "ebook-meta"),
 		converter:    env("ATHENAEUM_CONVERTER", "native"),
+
+		stopOnStdinClose: env("ATHENAEUM_STOP_ON_STDIN_CLOSE", "") == "1",
 	}
 }
 
@@ -163,6 +170,13 @@ func newServer(cfg config) (*api.Server, *store.Store, error) {
 	return srv, st, nil
 }
 
+// stopWhenClosed calls stop once r has nothing more to read, which for
+// a pipe means that whoever held its other end closed it or exited.
+func stopWhenClosed(r io.Reader, stop func()) {
+	_, _ = io.Copy(io.Discard, r)
+	stop()
+}
+
 // serve runs the HTTP server until the process is asked to stop.
 func serve(cfg config) error {
 	srv, st, err := newServer(cfg)
@@ -172,6 +186,9 @@ func serve(cfg config) error {
 	defer st.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if cfg.stopOnStdinClose {
+		go stopWhenClosed(os.Stdin, stop)
+	}
 	found, err := srv.Library.Rescan(ctx)
 	if err != nil {
 		return fmt.Errorf("reading the library folder: %w", err)

@@ -24,7 +24,7 @@ services:
       watch:
         # The server is a compiled binary with the web interface embedded,
         # so any change to the Go or React sources needs a new image. What
-        # .dockerignore lists (data, e2e, web/dist, web/node_modules) is
+        # .dockerignore lists (data, e2e, macos, web/dist, web/node_modules) is
         # already left out; the entries below never reach the image either.
         - action: rebuild
           path: .

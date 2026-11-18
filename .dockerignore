@@ -2,6 +2,7 @@
 data
 bin
 e2e
+macos
 testdata
 web/node_modules
 web/dist
