@@ -18,10 +18,18 @@ interface TrackOptions {
   onDone?: (job: Job) => void;
 }
 
+/** What to say while and after several background jobs run as one piece of work. */
+interface TrackAllOptions {
+  working: string;
+  done: string;
+  onDone?: () => void;
+}
+
 /** The functions pages use to report progress to the reader. */
 interface Notices {
   notify: (text: string, tone?: Tone) => void;
   track: (job: Job, options: TrackOptions) => void;
+  trackAll: (jobs: Job[], options: TrackAllOptions) => void;
   attempt: (action: () => Promise<unknown>) => Promise<boolean>;
 }
 
@@ -85,6 +93,30 @@ export function NoticesProvider({ children }: { children: ReactNode }) {
       };
       window.setTimeout(poll, pollInterval / 3);
     };
+    const trackAll = (jobs: Job[], options: TrackAllOptions) => {
+      const id = nextId.current++;
+      show(id, "working", `${options.working}…`);
+      const poll = async () => {
+        try {
+          const current = await Promise.all(jobs.map((job) => api.job(job.id)));
+          if (current.some((job) => job.status === "running")) {
+            window.setTimeout(poll, pollInterval);
+            return;
+          }
+          const failed = current.filter((job) => job.status === "failed");
+          if (failed.length > 0) {
+            const others = failed.length > 1 ? `, and ${failed.length - 1} more failed` : "";
+            show(id, "error", `${failed[0].title} failed: ${failed[0].error}${others}`);
+          } else {
+            show(id, "success", options.done);
+          }
+          options.onDone?.();
+        } catch (reason) {
+          show(id, "error", messageOf(reason));
+        }
+      };
+      window.setTimeout(poll, pollInterval / 3);
+    };
     const attempt = async (action: () => Promise<unknown>) => {
       try {
         await action();
@@ -94,7 +126,7 @@ export function NoticesProvider({ children }: { children: ReactNode }) {
         return false;
       }
     };
-    return { notify, track, attempt };
+    return { notify, track, trackAll, attempt };
   }, [show]);
 
   return (

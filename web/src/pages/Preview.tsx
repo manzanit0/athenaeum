@@ -8,7 +8,7 @@ import { Button, Problem } from "../ui";
 const sizes = [85, 100, 115, 130, 150, 175];
 const sizeKey = "athenaeum.preview.size";
 const pollInterval = 600;
-const frameClass = "h-[calc(100dvh-15rem)] min-h-[26rem] w-full rounded-sm border border-rule bg-sheet";
+const frameClass = "h-[calc(100dvh-19rem)] min-h-[26rem] w-full rounded-sm border border-rule bg-sheet";
 const selectClass = "max-w-full rounded-sm border border-rule bg-sheet px-3 py-2";
 
 /** Returns the text size the reader last chose. */

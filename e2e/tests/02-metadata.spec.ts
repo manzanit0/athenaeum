@@ -5,6 +5,8 @@ test("edits the details and cover of a book", async ({ page, request }) => {
   const book = await addBook(request, "kindred.epub");
   await page.goto(`/books/${book.id}`);
   await expect(page.getByRole("heading", { level: 1, name: "Kindred" })).toBeVisible();
+  await page.getByRole("link", { name: "Edit book" }).click();
+  await expect(page).toHaveURL(`/books/${book.id}/edit`);
 
   await page.getByLabel("Title").fill("Kindred: A Novel");
   await page.getByLabel("Authors").fill("Octavia E. Butler, Damian Duffy");
@@ -39,8 +41,12 @@ test("edits the details and cover of a book", async ({ page, request }) => {
 
   await expect(notice(page, "Changes saved")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Kindred: A Novel" })).toBeVisible();
+  await expect(page).toHaveURL(`/books/${book.id}`);
+  await expect(page.getByText("Graphic Adaptations, book 3")).toBeVisible();
+  await expect(page.getByText("Dana is pulled back in time to a Maryland plantation.")).toBeVisible();
+  await expect(page.getByLabel("Title")).toHaveCount(0);
 
-  await page.reload();
+  await page.goto(`/books/${book.id}/edit`);
   await expect(page.getByLabel("Authors")).toHaveValue("Octavia E. Butler, Damian Duffy");
   await expect(page.getByLabel("Number in series")).toHaveValue("3");
   await expect(published.getByLabel("Year")).toHaveValue("1979");
@@ -53,6 +59,17 @@ test("edits the details and cover of a book", async ({ page, request }) => {
   await expect(notice(page, "Cover changed")).toBeVisible();
   await page.getByRole("button", { name: "Remove cover" }).click();
   await expect(notice(page, "Cover removed")).toBeVisible();
+
+  await page.getByLabel("Title").fill("Something else");
+  await page.getByRole("link", { name: "Done" }).click();
+  const leaving = page.getByRole("dialog");
+  await expect(leaving).toContainText("Leave without saving?");
+  await leaving.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByLabel("Title")).toHaveValue("Something else");
+  await page.getByRole("link", { name: "Done" }).click();
+  await leaving.getByRole("button", { name: "Discard changes" }).click();
+  await expect(page).toHaveURL(`/books/${book.id}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Kindred: A Novel" })).toBeVisible();
 
   await page.goto("/");
   await page.getByLabel("Search library").fill("time travel");

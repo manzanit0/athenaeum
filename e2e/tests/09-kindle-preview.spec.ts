@@ -3,7 +3,7 @@ import { addBook, notice } from "./helpers";
 
 test("reads a Kindle book made from an EPUB and converts it back", async ({ page, request }) => {
   const book = await addBook(request, "almanac.epub");
-  await page.goto(`/books/${book.id}`);
+  await page.goto(`/books/${book.id}/edit`);
   await page.getByLabel("Convert to").selectOption("azw3");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
   await expect(notice(page, "Converted to AZW3")).toBeVisible();
@@ -18,6 +18,7 @@ test("reads a Kindle book made from an EPUB and converts it back", async ({ page
   await expect(pages.getByRole("heading", { name: "Storm Surge" })).toBeVisible();
 
   await page.getByRole("link", { name: "Back to the book" }).click();
+  await page.getByRole("link", { name: "Edit book" }).click();
   await page.getByLabel("Convert to").selectOption("epub");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
   await expect(notice(page, "Converted to EPUB")).toBeVisible();

@@ -14,6 +14,12 @@ test("imports books in several formats and reads their details", async ({ page }
 
   await shelfBook(page, "The Left Hand of Darkness", "Ursula K. Le Guin").click();
   await expect(page.getByRole("heading", { level: 1, name: "The Left Hand of Darkness" })).toBeVisible();
+  await expect(page.getByText("Ace Books")).toBeVisible();
+  await expect(page.getByText("9780441478125")).toBeVisible();
+  await expect(page.getByText(/^Hainish Cycle/)).toBeVisible();
+  await expect(page.getByLabel("Publisher")).toHaveCount(0);
+
+  await page.getByRole("link", { name: "Edit book" }).click();
   await expect(page.getByLabel("Publisher")).toHaveValue("Ace Books");
   await expect(page.getByLabel("ISBN")).toHaveValue("9780441478125");
   await expect(page.getByLabel("Series", { exact: true })).toHaveValue("Hainish Cycle");
@@ -31,6 +37,7 @@ test("searches the library", async ({ page }) => {
   await page.getByLabel("Search library").fill("lem");
   await expect(shelfBook(page, "Solaris", "Stanislaw Lem")).toBeVisible();
   await expect(shelfBook(page, "Typography Handbook", "Robert Bringhurst")).toHaveCount(0);
+  await expect(page.getByText(/^1 of \d+ books$/)).toBeVisible();
 
   await page.getByLabel("Search library").fill("science fiction");
   await expect(shelfBook(page, "The Left Hand of Darkness", "Ursula K. Le Guin")).toBeVisible();

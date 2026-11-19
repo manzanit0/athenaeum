@@ -50,6 +50,11 @@ export function directionLabel(sort: string): string {
   return order === "asc" ? "A to Z" : "Z to A";
 }
 
+/** Lists the two directions of the order by a property, the usual one first, each with its name. */
+export function directions(field: string): { sort: string; label: string }[] {
+  return [sortOf(field), reversed(sortOf(field))].map((sort) => ({ sort, label: directionLabel(sort) }));
+}
+
 /** How the books on the shelf are laid out. */
 export type Layout = "grid" | "list";
 

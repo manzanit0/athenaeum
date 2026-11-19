@@ -4,6 +4,8 @@ import { addBook, notice, shelfBook } from "./helpers";
 test("deletes a book from the library", async ({ page, request }) => {
   const book = await addBook(request, "handbook.pdf");
   await page.goto(`/books/${book.id}`);
+  await expect(page.getByRole("button", { name: "Delete book" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Edit book" }).click();
 
   await page.getByRole("button", { name: "Delete book" }).click();
   const dialog = page.getByRole("dialog");
@@ -22,7 +24,7 @@ test("deletes a book from the library", async ({ page, request }) => {
 
 test("shows finished work in the activity log", async ({ page, request }) => {
   const book = await addBook(request, "kindred.epub");
-  await page.goto(`/books/${book.id}`);
+  await page.goto(`/books/${book.id}/edit`);
   await page.getByLabel("Convert to").selectOption("mobi");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
   await expect(notice(page, "Converted to MOBI")).toBeVisible();
@@ -33,4 +35,8 @@ test("shows finished work in the activity log", async ({ page, request }) => {
   await entry.getByRole("link").click();
   await expect(page.getByRole("heading", { level: 1, name: "Kindred" })).toBeVisible();
   await expect(shelfBook(page, "Kindred", "Octavia E. Butler")).toHaveCount(0);
+
+  await page.goto("/activity");
+  await expect(page.getByText(/^Athenaeum version \S+/)).toBeVisible();
+  await expect(page.getByText(/^Version /)).toHaveCount(0);
 });

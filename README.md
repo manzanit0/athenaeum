@@ -22,25 +22,27 @@ embedded in it. The screenshots show a made-up sample library.
 Upload or drag in EPUB, MOBI, AZW3, PDF and more; title, author, cover
 and the other details are read from the file where it carries them.
 Browse the shelf as a grid of covers or as a sortable list, search it,
-and narrow it by category, language and format.
+and narrow it to a shelf: a category, a language or a format.
 
-![The list view narrowed to the Fiction category, with the categories below it](docs/screenshots/browse.png)
+![The list view showing the Fiction category, with the categories below it](docs/screenshots/browse.png)
 
 Categories are paths such as `History / Military`, so a category opens
-to the ones below it. Many books can be filed at once.
+to the ones below it. Tick books to file many at once, or to send them
+to the Kindle.
 
-A library is a folder, and there can be several. The control under the
+A library is a folder, and there can be several. The control beside the
 application's name says which one is open and switches to the others;
 see [Libraries](#libraries).
 
 ### Lets you fix a book's details and files
 
-Every field and the cover are editable, and the files on disk are
-renamed to match. A book holds one file per format; convert between
-them from its page. EPUB to AZW3 and back, and PDF to EPUB or AZW3, are
-built in; with calibre installed, many more.
+A book's page says what the book is and offers its files. "Edit book"
+opens its details: every field and the cover are editable, and the
+files on disk are renamed to match. A book holds one file per format;
+convert between them there. EPUB to AZW3 and back, and PDF to EPUB or
+AZW3, are built in; with calibre installed, many more.
 
-![A book's page: its details, categories and files, with the conversion below](docs/screenshots/book.png)
+![A book being edited: its details, categories and files, with the conversion below](docs/screenshots/book.png)
 
 ### Opens books in the browser
 
@@ -53,17 +55,18 @@ Kindle formats are unpacked first.
 ### Manages a Kindle
 
 With the Kindle plugged in as a USB drive, see what is on it, remove
-books, copy device books into the library and send library books. A
-book with no Kindle format is converted to AZW3 on the way.
+books, copy device books into the library and send library books,
+which are ticked on the shelf. A book with no Kindle format is
+converted to AZW3 on the way.
 
-![The books on the Kindle and the library books that can be sent to it](docs/screenshots/kindle.png)
+![The Kindle page: how full the device is and the books on it](docs/screenshots/kindle.png)
 
 ### Keeps a copy on MEGA
 
 Sign in to MEGA in the app and sync the library with a folder there:
-both ways, upload only or download only. A preview says, book by book,
-what would be added, updated and removed on each side before anything
-changes.
+both ways, upload only or download only. Every sync first shows, book
+by book, what would be added, updated and removed on each side, and
+changes nothing until you confirm.
 
 <img src="docs/screenshots/sync.png" width="569" alt="A sync preview: books to add, update and remove on MEGA and in the library, and the button that makes those changes">
 
@@ -94,7 +97,7 @@ The app starts with a library in
 `~/Library/Application Support/Athenaeum`; see [macOS app](#macos-app).
 
 However it runs, the library it starts with is only the first one:
-others are added by folder from the library menu under the
+others are added by folder from the library menu beside the
 application's name; see [Libraries](#libraries).
 
 There is no sign-in: the app is meant for one person on a trusted network.
@@ -123,6 +126,9 @@ Everything is set through environment variables.
 - Title, authors, series, publisher, ISBN, tags and cover are read from EPUB and
   MOBI/AZW files; title, author and keywords from PDF.
 - Anything else falls back to a `Title - Author.ext` file name.
+- A book's page shows the book as text, with its files to download.
+  "Edit book" opens its details, cover and files, and the way to delete
+  it; saving the details comes back to the book.
 - Every field and the cover are editable. Folders and files are renamed to
   match.
 - The publication date is a year, a year and month or a full day, entered as a
@@ -131,29 +137,41 @@ Everything is set through environment variables.
 
 ### Browsing and categories
 
+- The application's name, the open library and the sections (Library,
+  Kindle, MEGA sync, Activity) sit in one bar across the top. That
+  leaves the side of the window to one panel, on the library page only:
+  the shelves.
+- The shelves are always beside the books. In a narrow window they are
+  put away behind a "Filters" button and open between the controls and
+  the books; what the shelf is narrowed to is then listed above the
+  books.
 - Books are filed under categories, which are the book's tags written as a path
   such as `History / Military`.
-- The library page lists the top-level categories, the ones with the most books
-  first and ten at most before a "show more"; each opens to the categories below
-  it, by itself when it is ticked, and ticking one also shows the books below
-  it.
-- Categories, language and format are tick boxes with the number of books each
-  leads to: ticking several values of one kind shows the books with any of them,
-  the kinds combine, and a value that leads nowhere is dimmed.
+- The panel lists "All books", then the top-level categories, the ones
+  with the most books first and ten at most before a "show more". A
+  category opens to the categories below it when it, or one of them, is
+  chosen, and choosing it also shows the books below it.
+- Categories, languages and formats are rows with the number of books
+  each leads to. One row of each kind is chosen at a time, the kinds
+  combine, and a row that leads nowhere is dimmed. Pressing the chosen
+  row again lets go of it; "All books" lets go of everything.
 - The choice is kept in the address of the page.
 - The shelf shows as a grid of covers or as a list with title, author,
   publication date, publisher, categories and files, which the headings of its
   columns sort.
-- The shelf is sorted by one property in one direction: "Sort by" and the
-  headings of the list name the same properties and change the same order, and
-  dates start with the newest.
+- The shelf is sorted by one property in one direction: the "Sort" menu
+  and the headings of the list name the same properties and change the
+  same order, and dates start with the newest.
 - The library page uses the whole width of the window; a wide list also shows
   the language and the day each book was added.
 - A book takes up to three categories, the most specific ones: filing it under
   `History / Military` takes it out of `History`.
-- A book's page offers the categories already in use and a field for a new
+- Editing a book offers the categories already in use and a field for a new
   one.
-- On the library page many books are filed, or taken out of a category, at once.
+- A tick box shows on a book under the pointer, and always in the list
+  and on touch screens. Once a book is ticked, a click on a cover ticks
+  it instead of opening it, and a bar offers to file the ticked books
+  under a category, take them out of one, or send them to the Kindle.
 - A page lists every category to rename it, merge it into another or remove it.
 - Subjects embedded in imported files are kept as they are and can be tidied
   there.
@@ -165,10 +183,10 @@ A library is a folder that holds everything about one collection:
 MEGA session, and `cache/`, which is safe to delete. One library is open
 at a time.
 
-- **The library menu**: the control under the application's name shows
+- **The library menu**: the control beside the application's name shows
   the open library. It opens a menu of the known libraries, where
   choosing one switches to it, and "Add or remove libraries" below them
-  leads to the page for the rest. The sections under it belong to the
+  leads to the page for the rest. The sections next to it belong to the
   library it names. The first library is called "Default library";
   the others go by the name of their folder.
 - **Adding a library**: type its folder's whole path; `~` stands for the
@@ -294,6 +312,12 @@ book (`.sdr` folder, `.mbp`, `.apnx` and friends) follow the `KINDLE2`
 driver in calibre's
 [`devices/kindle/driver.py`](https://github.com/kovidgoyal/calibre/blob/master/src/calibre/devices/kindle/driver.py).
 
+Books are sent from the library: tick them on the shelf and choose
+"Send to Kindle", or use the button on a book's page. "Send books from
+the library" on the Kindle page opens the shelf ready for ticking and
+comes back when they are sent. Books already on the Kindle are skipped.
+The Kindle's folder is changed from "Change" beside its path.
+
 A book sent without a Kindle format is converted to AZW3 first, which
 needs no calibre for EPUB and PDF books.
 
@@ -334,11 +358,16 @@ apart. A preview of a download names the books MEGA has from their
 details files, reading up to 30 of them; past that, books are named
 after their files.
 
+Every sync starts as a preview: it shows what would change, book by
+book, and changes nothing until "Make these changes" is chosen, which
+compares both sides again first. Once an account and a folder are set
+they are said in a sentence, with "Change" to get back to them.
+
 | Action | Effect |
 | --- | --- |
-| Sync both ways | Removes from MEGA what was deleted here, uploads, then downloads. Books deleted directly on MEGA come back on the next upload. |
-| Upload to MEGA | MEGA catches up with the library. With the delete option, MEGA becomes an exact mirror. |
-| Download from MEGA | The library catches up with MEGA. With the delete option, the library becomes an exact mirror. |
+| Sync | Removes from MEGA what was deleted here, uploads, then downloads. Books deleted directly on MEGA come back on the next upload. |
+| Upload to MEGA, under "More options" | MEGA catches up with the library. With the delete option, MEGA becomes an exact mirror. |
+| Download from MEGA, under "More options" | The library catches up with MEGA. With the delete option, the library becomes an exact mirror. |
 
 Deletions on MEGA go to its Rubbish Bin; deletions in the library are
 permanent.

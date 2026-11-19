@@ -2,7 +2,7 @@ import { type FormEvent, Fragment, useEffect, useId, useState } from "react";
 import { api, type Book, downloadUrl, type Metadata, type Tally, warningsOf } from "../api";
 import { same, tidy, withCategory } from "../categories";
 import { Cover } from "../Cover";
-import { byline, bytes, count, monthNames, splitList } from "../format";
+import { byline, bytes, count, languageName, monthNames, publishedOn, splitList } from "../format";
 import { useLoad } from "../hooks";
 import { useNotices } from "../notices";
 import { Link, navigate } from "../router";
@@ -264,8 +264,19 @@ function PublishedField({
   );
 }
 
-/** The form that edits a book's metadata. */
-function DetailsForm({ book, onSaved }: { book: Book; onSaved: (book: Book) => void }) {
+/**
+ * The form that edits a book's metadata. It tells its page whether it
+ * holds changes that have not been saved.
+ */
+function DetailsForm({
+  book,
+  onSaved,
+  onDirty,
+}: {
+  book: Book;
+  onSaved: (book: Book) => void;
+  onDirty: (dirty: boolean) => void;
+}) {
   const { notify, attempt } = useNotices();
   const [draft, setDraft] = useState(() => draftOf(book));
   const [saving, setSaving] = useState(false);
@@ -273,10 +284,12 @@ function DetailsForm({ book, onSaved }: { book: Book; onSaved: (book: Book) => v
   const [checked, setChecked] = useState(false);
   const problem = dateProblem(draft);
   const library = useLoad(() => api.facets(blank), [book]);
+  const dirty = JSON.stringify([draft, tags]) !== JSON.stringify([draftOf(book), book.tags]);
   useEffect(() => {
     setDraft(draftOf(book));
     setTags(book.tags);
   }, [book]);
+  useEffect(() => onDirty(dirty), [dirty]);
   const bind = (key: keyof Draft) => ({
     value: draft[key],
     onChange: (event: { target: { value: string } }) => setDraft({ ...draft, [key]: event.target.value }),
@@ -315,8 +328,47 @@ function DetailsForm({ book, onSaved }: { book: Book; onSaved: (book: Book) => v
   );
 }
 
-/** The list of a book's files with download, removal and conversion. */
-function Files({ book, onChanged }: { book: Book; onChanged: (book?: Book) => void }) {
+/**
+ * What is known about a book, as text: its description and the details
+ * that are filled in.
+ */
+function About({ book }: { book: Book }) {
+  const series = book.series && book.series_index ? `${book.series}, book ${book.series_index}` : book.series;
+  const facts = [
+    ["Series", series],
+    ["Publisher", book.publisher],
+    ["Published", publishedOn(book.published)],
+    ["Language", book.language && languageName(book.language)],
+    ["ISBN", book.isbn],
+  ].filter(([, value]) => value);
+  if (!book.description && facts.length === 0) {
+    return <p className="mb-10 text-soft">Nothing has been written down about this book yet.</p>;
+  }
+  return (
+    <div className="mb-10">
+      {book.description && (
+        <p className="max-w-[62ch] whitespace-pre-line text-[1.06rem] leading-relaxed">{book.description}</p>
+      )}
+      {facts.length > 0 && (
+        <dl className={`grid max-w-[62ch] grid-cols-[7.5rem_minmax(0,1fr)] gap-y-1.5 ${book.description ? "mt-6" : ""}`}>
+          {facts.map(([name, value]) => (
+            <Fragment key={name}>
+              <dt className="text-soft">{name}</dt>
+              <dd>{value}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The list of a book's files, each of which can be downloaded. While
+ * the book is being edited, files can also be removed, converted and
+ * added.
+ */
+function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onChanged: (book?: Book) => void }) {
   const system = useSystem();
   const { notify, track, attempt } = useNotices();
   const builtIn = (target: string) =>
@@ -366,55 +418,61 @@ function Files({ book, onChanged }: { book: Book; onChanged: (book?: Book) => vo
             >
               Download
             </a>
-            <Button variant="quiet" aria-label={`Remove ${file.format.toUpperCase()}`} onClick={() => remove(file.format)}>
-              Remove
-            </Button>
+            {editing && (
+              <Button variant="quiet" aria-label={`Remove ${file.format.toUpperCase()}`} onClick={() => remove(file.format)}>
+                Remove
+              </Button>
+            )}
           </li>
         ))}
       </ul>
-      <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-4">
-        <div>
-          <label htmlFor="convert-target" className="mb-1 block font-medium">
-            Convert to
-          </label>
-          <div className="flex gap-2">
-            <select
-              id="convert-target"
-              value={chosen}
-              onChange={(event) => setTarget(event.target.value)}
-              disabled={targets.length === 0}
-              className="rounded-sm border border-rule bg-sheet px-3 py-2"
-            >
-              {targets.map((format) => (
-                <option key={format} value={format}>
-                  {format.toUpperCase()}
-                </option>
-              ))}
-            </select>
-            <Button onClick={convert} disabled={!chosen || book.formats.length === 0}>
-              Convert
-            </Button>
+      {editing && (
+        <>
+          <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-4">
+            <div>
+              <label htmlFor="convert-target" className="mb-1 block font-medium">
+                Convert to
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="convert-target"
+                  value={chosen}
+                  onChange={(event) => setTarget(event.target.value)}
+                  disabled={targets.length === 0}
+                  className="rounded-sm border border-rule bg-sheet px-3 py-2"
+                >
+                  {targets.map((format) => (
+                    <option key={format} value={format}>
+                      {format.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+                <Button onClick={convert} disabled={!chosen || book.formats.length === 0}>
+                  Convert
+                </Button>
+              </div>
+            </div>
+            <label className={`${buttonClass()} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ribbon`}>
+              Add a file
+              <input
+                type="file"
+                className="sr-only"
+                accept={system.import_formats.map((format) => `.${format}`).join(",")}
+                onChange={(event) => {
+                  add(Array.from(event.target.files ?? []));
+                  event.target.value = "";
+                }}
+              />
+            </label>
           </div>
-        </div>
-        <label className={`${buttonClass()} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ribbon`}>
-          Add a file
-          <input
-            type="file"
-            className="sr-only"
-            accept={system.import_formats.map((format) => `.${format}`).join(",")}
-            onChange={(event) => {
-              add(Array.from(event.target.files ?? []));
-              event.target.value = "";
-            }}
-          />
-        </label>
-      </div>
-      {!system.can_convert && system.version && (
-        <p className="mt-3 max-w-[62ch] text-[0.9rem] text-soft">
-          EPUB and AZW3 convert to each other, and PDF to EPUB or AZW3, without anything else installed. Other
-          conversions need
-          calibre's ebook-convert, which was not found on this machine. The Docker image includes it.
-        </p>
+          {!system.can_convert && system.version && (
+            <p className="mt-3 max-w-[62ch] text-[0.9rem] text-soft">
+              EPUB and AZW3 convert to each other, and PDF to EPUB or AZW3, without anything else installed. Other
+              conversions need
+              calibre's ebook-convert, which was not found on this machine. The Docker image includes it.
+            </p>
+          )}
+        </>
       )}
     </Section>
   );
@@ -424,8 +482,10 @@ function Files({ book, onChanged }: { book: Book; onChanged: (book?: Book) => vo
  * The cover of a book with the actions that apply to the whole book. A
  * book that has files opens for reading from its cover, which says so
  * under the pointer, on keyboard focus and always on touch screens.
+ * Changing the cover and deleting the book wait for the book to be
+ * edited.
  */
-function Sidebar({ book, onChanged }: { book: Book; onChanged: (book?: Book) => void }) {
+function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; onChanged: (book?: Book) => void }) {
   const { notify, track, attempt } = useNotices();
   const device = useLoad(api.device, []);
   const [confirming, setConfirming] = useState(false);
@@ -481,26 +541,30 @@ function Sidebar({ book, onChanged }: { book: Book; onChanged: (book?: Book) => 
             </Link>
           </p>
         )}
-        <label className={`${buttonClass()} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ribbon`}>
-          Change cover
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            className="sr-only"
-            onChange={(event) => {
-              setCover(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-        </label>
-        {book.cover && (
-          <Button variant="quiet" className="self-start" onClick={removeCover}>
-            Remove cover
-          </Button>
+        {editing && (
+          <>
+            <label className={`${buttonClass()} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ribbon`}>
+              Change cover
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  setCover(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            {book.cover && (
+              <Button variant="quiet" className="self-start" onClick={removeCover}>
+                Remove cover
+              </Button>
+            )}
+            <Button variant="danger" className="mt-4" onClick={() => setConfirming(true)}>
+              Delete book
+            </Button>
+          </>
         )}
-        <Button variant="danger" className="mt-4" onClick={() => setConfirming(true)}>
-          Delete book
-        </Button>
       </div>
       <Confirm
         open={confirming}
@@ -518,10 +582,24 @@ function Sidebar({ book, onChanged }: { book: Book; onChanged: (book?: Book) => 
   );
 }
 
-/** Everything about one book: details, cover, files and actions. */
-export function BookPage({ id }: { id: number }) {
+/**
+ * One book. The page says what the book is and offers what a reader
+ * does with it: read it, send it to the Kindle, download a file. Its
+ * details, cover and files are changed, and the book deleted, in a
+ * second view of the same page, which "Edit book" opens. Saving the
+ * details there comes back to the book; leaving with details unsaved
+ * asks first.
+ */
+export function BookPage({ id, editing }: { id: number; editing: boolean }) {
   const book = useLoad(() => api.book(id), [id]);
+  const [dirty, setDirty] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const changed = (next?: Book) => (next ? book.set(next) : book.reload());
+  const saved = (next: Book) => {
+    book.set(next);
+    setDirty(false);
+    navigate(`/books/${id}`);
+  };
   if (book.error) {
     return (
       <>
@@ -540,48 +618,85 @@ export function BookPage({ id }: { id: number }) {
       <Link to={shelfHref()} className="text-soft underline underline-offset-4 hover:text-ink">
         Back to the library
       </Link>
-      <header className="mb-8 mt-3 border-b border-rule pb-5">
-        <h1 className="font-display text-[2.1rem] font-medium leading-tight tracking-[-0.01em]">{book.data.title}</h1>
-        <p className="mt-1 text-[1.1rem] text-soft">
-          {book.data.authors.length === 0 && byline(book.data.authors)}
-          {book.data.authors.map((author, index) => (
-            <Fragment key={author}>
-              {index > 0 && ", "}
-              <Link
-                to={viewHref({ ...blank, author })}
-                aria-label={`Books by ${author}`}
-                className="underline-offset-4 hover:text-ink hover:underline"
-              >
-                {author}
-              </Link>
-            </Fragment>
-          ))}
-        </p>
-        {book.data.tags.length > 0 && (
-          <ul aria-label="Filed under" className="mt-3 flex flex-wrap gap-2">
-            {book.data.tags.map((tag) => (
-              <li key={tag}>
+      <header className="mb-8 mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-rule pb-5">
+        <div className="min-w-0">
+          <h1 className="font-display text-[2.1rem] font-medium leading-tight tracking-[-0.01em]">{book.data.title}</h1>
+          <p className="mt-1 text-[1.1rem] text-soft">
+            {book.data.authors.length === 0 && byline(book.data.authors)}
+            {book.data.authors.map((author, index) => (
+              <Fragment key={author}>
+                {index > 0 && ", "}
                 <Link
-                  to={viewHref({ ...blank, tags: [tag] })}
-                  aria-label={`Books in ${tag}`}
-                  className="block rounded-sm border border-rule px-2.5 py-0.5 text-[0.93rem] hover:border-ink"
+                  to={viewHref({ ...blank, author })}
+                  aria-label={`Books by ${author}`}
+                  className="underline-offset-4 hover:text-ink hover:underline"
                 >
-                  {tag}
+                  {author}
                 </Link>
-              </li>
+              </Fragment>
             ))}
-          </ul>
+          </p>
+          {book.data.tags.length > 0 && (
+            <ul aria-label="Filed under" className="mt-3 flex flex-wrap gap-2">
+              {book.data.tags.map((tag) => (
+                <li key={tag}>
+                  <Link
+                    to={viewHref({ ...blank, tags: [tag] })}
+                    aria-label={`Books in ${tag}`}
+                    className="block rounded-sm border border-rule px-2.5 py-0.5 text-[0.93rem] hover:border-ink"
+                  >
+                    {tag}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {editing ? (
+          <Link
+            to={`/books/${id}`}
+            className={buttonClass()}
+            onClick={(event) => {
+              if (dirty) {
+                event.preventDefault();
+                setLeaving(true);
+              }
+            }}
+          >
+            Done
+          </Link>
+        ) : (
+          <Link to={`/books/${id}/edit`} className={buttonClass()}>
+            Edit book
+          </Link>
         )}
       </header>
       <div className="grid gap-x-12 gap-y-10 md:grid-cols-[15rem_minmax(0,1fr)]">
-        <Sidebar book={book.data} onChanged={changed} />
+        <Sidebar book={book.data} editing={editing} onChanged={changed} />
         <div className="min-w-0">
-          <Section title="Details">
-            <DetailsForm book={book.data} onSaved={changed} />
-          </Section>
-          <Files book={book.data} onChanged={changed} />
+          {editing ? (
+            <Section title="Details">
+              <DetailsForm book={book.data} onSaved={saved} onDirty={setDirty} />
+            </Section>
+          ) : (
+            <About book={book.data} />
+          )}
+          <Files book={book.data} editing={editing} onChanged={changed} />
         </div>
       </div>
+      <Confirm
+        open={leaving}
+        title="Leave without saving?"
+        action="Discard changes"
+        onCancel={() => setLeaving(false)}
+        onConfirm={() => {
+          setLeaving(false);
+          setDirty(false);
+          navigate(`/books/${id}`);
+        }}
+      >
+        The changes to the details of this book have not been saved.
+      </Confirm>
     </>
   );
 }

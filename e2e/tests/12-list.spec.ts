@@ -23,32 +23,45 @@ test("shows the shelf as a list and sorts it by its columns", async ({ page, req
   await expect(page.getByRole("row", { name: /Harbour Lights/ })).toContainText("Quay Press");
   await expect(page.getByRole("row", { name: /Harbour Lights/ })).toContainText("Nautical");
 
-  const sortBy = page.getByLabel("Sort by");
-  const direction = page.getByRole("button", { name: /A to Z|Z to A|Newest first|Oldest first/ });
-  await expect(sortBy).toHaveValue("title");
-  await expect(direction).toHaveText(/A to Z/);
+  const menu = page.getByRole("menu", { name: "Sort" });
+  const field = (name: string) => menu.getByRole("group", { name: "Sort by" }).getByRole("menuitemradio", { name });
+  const order = (name: string) => menu.getByRole("group", { name: "Order" }).getByRole("menuitemradio", { name });
+  const open = () => page.getByRole("button", { name: "Sort", exact: true }).click();
+  await open();
+  await expect(field("Title")).toBeChecked();
+  await expect(order("A to Z")).toBeChecked();
+  await expect(order("Z to A")).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
   await expect(page.getByRole("row", { name: /Harbour Lights/ })).toContainText("Mar 2011");
 
   await page.getByRole("columnheader", { name: "Title" }).getByRole("button").click();
   await expect(titles()).toHaveText(["Mooring Lines", "Harbour Lights", "Anchors Aweigh"]);
   await expect(page.getByRole("columnheader", { name: "Title" })).toHaveAttribute("aria-sort", "descending");
-  await expect(direction).toHaveText(/Z to A/);
+  await open();
+  await expect(order("Z to A")).toBeChecked();
+  await page.keyboard.press("Escape");
 
   await page.getByRole("columnheader", { name: "Published" }).getByRole("button").click();
   await expect(page).toHaveURL(/sort=published%3Adesc/);
   await expect(titles()).toHaveText(["Harbour Lights", "Anchors Aweigh", "Mooring Lines"]);
-  await expect(sortBy).toHaveValue("published");
-  await expect(direction).toHaveText(/Newest first/);
-  await direction.click();
-  await expect(direction).toHaveText(/Oldest first/);
+  await open();
+  await expect(field("Published")).toBeChecked();
+  await expect(order("Newest first")).toBeChecked();
+  await order("Oldest first").click();
+  await expect(menu).toHaveCount(0);
   await expect(titles()).toHaveText(["Anchors Aweigh", "Harbour Lights", "Mooring Lines"]);
   await expect(page.getByRole("columnheader", { name: "Published" })).toHaveAttribute("aria-sort", "ascending");
 
-  await sortBy.selectOption({ label: "Author" });
+  await open();
+  await field("Author").click();
   await expect(titles()).toHaveText(["Anchors Aweigh", "Mooring Lines", "Harbour Lights"]);
   await expect(page.getByRole("columnheader", { name: "Author" })).toHaveAttribute("aria-sort", "ascending");
   await expect(page.getByRole("columnheader", { name: "Published" })).toHaveAttribute("aria-sort", "none");
-  await expect(direction).toHaveText(/A to Z/);
+  await open();
+  await expect(order("A to Z")).toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel("Select Anchors Aweigh")).toBeVisible();
 
   await page.reload();
   await expect(titles()).toHaveText(["Anchors Aweigh", "Mooring Lines", "Harbour Lights"]);

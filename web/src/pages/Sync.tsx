@@ -14,16 +14,6 @@ import { useNotices } from "../notices";
 import { Side, unchanged } from "../SyncChanges";
 import { Button, Field, PageHeader, Problem, Section } from "../ui";
 
-const directions: { direction: SyncDirection; label: string; about: string }[] = [
-  {
-    direction: "both",
-    label: "Sync both ways",
-    about: "Uploads what MEGA is missing, downloads what this library is missing, and removes from MEGA the books deleted here.",
-  },
-  { direction: "push", label: "Upload to MEGA", about: "Makes the MEGA folder catch up with this library." },
-  { direction: "pull", label: "Download from MEGA", about: "Makes this library catch up with the MEGA folder." },
-];
-
 const pollInterval = 600;
 
 const phases: Record<SyncProgress["phase"], string> = {
@@ -261,13 +251,35 @@ function Account({ info, onChanged }: { info: SyncInfo; onChanged: () => void })
   );
 }
 
-/** Keeps the library in step with a folder on MEGA. */
+/** A chevron that points right, or down when what it stands before is open. */
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 12 12"
+      className={`h-3 w-3 shrink-0 transition-transform duration-150 ${open ? "" : "-rotate-90"}`}
+      fill="none"
+      stroke="currentColor"
+    >
+      <path d="M2.5 4.5 6 8l3.5-3.5" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Keeps the library in step with a folder on MEGA. Once an account and
+ * a folder are set, they are said in a sentence and one button syncs.
+ * Every sync first shows what it would change, and changes nothing
+ * until that is confirmed. Syncing one way only, and deleting what the
+ * other side no longer has, are kept behind "More options".
+ */
 export function SyncPage() {
   const { notify, track, attempt } = useNotices();
   const info = useLoad(api.sync, []);
   const [folder, setFolder] = useState<string>();
   const [mirror, setMirror] = useState(false);
-  const [preview, setPreview] = useState(false);
+  const [changing, setChanging] = useState(false);
+  const [options, setOptions] = useState(false);
   const [active, setActive] = useState<Job>();
   const data = info.data;
   const lastRun = data?.last_run;
@@ -308,6 +320,7 @@ export function SyncPage() {
     attempt(async () => {
       await api.saveSettings({ mega_folder: folder ?? data?.folder ?? "" });
       setFolder(undefined);
+      setChanging(false);
       notify("MEGA folder saved");
       info.reload();
     });
@@ -329,71 +342,113 @@ export function SyncPage() {
       {!data && !info.error && <p className="text-soft">Loading…</p>}
       {data && (
         <>
-          <Section title="Account">
-            <Account info={data} onChanged={info.reload} />
-          </Section>
-
-          <Section title="Folder">
-            <form onSubmit={saveFolder} className="flex max-w-xl flex-wrap items-end gap-3">
-              <Field
-                label="MEGA folder"
-                placeholder="Books/Library"
-                hint="A path from the top of your Cloud Drive. It is created on the first upload."
-                className="min-w-[16rem] flex-1"
-                value={folder ?? data.folder}
-                onChange={(event) => setFolder(event.target.value)}
-              />
-              <Button type="submit" className="mb-[1.65rem]">
-                Save folder
+          {data.signed_in && data.folder && !changing ? (
+            <p className="mb-8 max-w-[62ch]">
+              Signed in to MEGA as {data.account}, syncing with the folder{" "}
+              <span className="font-medium">{data.folder}</span>.{" "}
+              <Button variant="quiet" className="py-0 font-normal" onClick={() => setChanging(true)}>
+                Change
               </Button>
-            </form>
-          </Section>
+            </p>
+          ) : (
+            <>
+              <Section title="Account">
+                <Account info={data} onChanged={info.reload} />
+              </Section>
 
-          <Section title="Sync now">
-            <div className="mb-5 space-y-2">
-              <label className="flex items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 accent-ink"
-                  checked={preview}
-                  onChange={(event) => setPreview(event.target.checked)}
-                />
-                <span>Preview only, change nothing</span>
-              </label>
-              <label className="flex items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 accent-ink"
-                  checked={mirror}
-                  onChange={(event) => setMirror(event.target.checked)}
-                />
-                <span>
-                  When uploading or downloading, also delete what the other side no longer has
-                  <span className="block text-[0.9rem] text-soft">
-                    Deletions on MEGA go to its Rubbish Bin. Deletions in this library are permanent.
-                  </span>
-                </span>
-              </label>
-            </div>
-            <ul className="max-w-[62ch] divide-y divide-rule border-y border-rule">
-              {directions.map(({ direction, label, about }, index) => (
-                <li key={direction} className="flex flex-wrap items-center gap-x-6 gap-y-2 py-3.5">
-                  <p className="min-w-[14rem] flex-1 text-soft">{about}</p>
-                  <Button variant={index === 0 ? "primary" : "secondary"} disabled={!ready} onClick={() => start(direction, mirror, preview)}>
-                    {label}
+              <Section title="Folder">
+                <form onSubmit={saveFolder} className="flex max-w-2xl flex-wrap items-end gap-3">
+                  <Field
+                    label="MEGA folder"
+                    placeholder="Books/Library"
+                    hint="A path from the top of your Cloud Drive. It is created on the first upload."
+                    className="min-w-[16rem] flex-1"
+                    value={folder ?? data.folder}
+                    onChange={(event) => setFolder(event.target.value)}
+                  />
+                  <Button type="submit" className="mb-[1.65rem]">
+                    Save folder
                   </Button>
-                </li>
-              ))}
-            </ul>
-            {!data.signed_in && <p className="mt-3 text-soft">Sign in to MEGA above to turn these on.</p>}
-            {data.signed_in && !data.folder && <p className="mt-3 text-soft">Save a MEGA folder above to turn these on.</p>}
+                  {changing && data.signed_in && data.folder && (
+                    <Button
+                      variant="quiet"
+                      className="mb-[1.65rem] ml-2"
+                      onClick={() => {
+                        setFolder(undefined);
+                        setChanging(false);
+                      }}
+                    >
+                      Done
+                    </Button>
+                  )}
+                </form>
+              </Section>
+            </>
+          )}
+
+          <div className="mb-10">
+            <div className="flex max-w-[62ch] flex-wrap items-center gap-x-5 gap-y-3">
+              <Button
+                variant="primary"
+                className="px-6 py-2.5 text-[1.05rem]"
+                disabled={!ready}
+                onClick={() => start("both", false, true)}
+              >
+                Sync
+              </Button>
+              <p className="min-w-[14rem] flex-1 text-soft">
+                Compares this library with MEGA and shows what would change. Nothing changes until you confirm.
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-expanded={options}
+              aria-controls="sync-options"
+              onClick={() => setOptions(!options)}
+              className="mt-4 inline-flex items-center gap-2 text-soft hover:text-ink"
+            >
+              <Chevron open={options} />
+              More options
+            </button>
+            {options && (
+              <div id="sync-options" className="mt-3 max-w-[62ch] border-l-4 border-rule bg-sheet px-5 py-4">
+                <p className="font-medium">Sync one way only</p>
+                <p className="mt-0.5 text-[0.9rem] text-soft">
+                  Uploading makes the MEGA folder catch up with this library; downloading makes this library catch up
+                  with the MEGA folder. Each shows what it would change first.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <Button disabled={!ready} onClick={() => start("push", mirror, true)}>
+                    Upload to MEGA
+                  </Button>
+                  <Button disabled={!ready} onClick={() => start("pull", mirror, true)}>
+                    Download from MEGA
+                  </Button>
+                </div>
+                <label className="mt-4 flex items-start gap-2.5">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 accent-ink"
+                    checked={mirror}
+                    onChange={(event) => setMirror(event.target.checked)}
+                  />
+                  <span>
+                    Also delete what the other side no longer has
+                    <span className="block text-[0.9rem] text-soft">
+                      Deletions on MEGA go to its Rubbish Bin. Deletions in this library are permanent.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+            {!data.signed_in && <p className="mt-3 text-soft">Sign in to MEGA above to turn this on.</p>}
+            {data.signed_in && !data.folder && <p className="mt-3 text-soft">Save a MEGA folder above to turn this on.</p>}
             {data.pending_deletions > 0 && (
-              <p className="mt-3 max-w-[62ch] text-soft">
-                {count(data.pending_deletions, "file")} deleted or renamed here will leave MEGA with the next upload. A
-                preview shows which books they belong to.
+              <p className="mt-4 max-w-[62ch] text-soft">
+                {count(data.pending_deletions, "file")} deleted or renamed here will leave MEGA with the next sync.
               </p>
             )}
-          </Section>
+          </div>
 
           {running && (
             <Section title="Syncing now">

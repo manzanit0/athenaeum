@@ -46,6 +46,7 @@ func main() {
 		"harbour.epub":     booktest.EPUB(booktest.Book{Title: "Harbour Lights", Author: "Nell Ward", Language: "en"}),
 		"anchors.epub":     booktest.EPUB(booktest.Book{Title: "Anchors Aweigh", Author: "Abel Finch", Language: "en"}),
 		"mooring.epub":     booktest.EPUB(booktest.Book{Title: "Mooring Lines", Author: "Cora Pike", Language: "en"}),
+		"skerries.epub":    booktest.EPUB(booktest.Book{Title: "Letters from the Skerries", Author: "Tove Aldane", Language: "en"}),
 		"solaris.mobi":     booktest.MOBI(booktest.Book{Title: "Solaris", Author: "Stanislaw Lem", Tags: []string{"Science Fiction"}}),
 		"roadside.mobi":    booktest.MOBI(booktest.Book{Title: "Roadside Picnic", Author: "Arkady Strugatsky"}),
 		"handbook.pdf":     booktest.PDF(booktest.Book{Title: "Typography Handbook", Author: "Robert Bringhurst"}),

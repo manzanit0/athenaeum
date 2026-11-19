@@ -9,7 +9,7 @@ const home = path.join(work, "data");
 /** The folder the tests keep their other libraries in. */
 const shelves = path.join(work, "shelves");
 
-/** Finds the control under the application's name, which names the open library. */
+/** Finds the control beside the application's name, which names the open library. */
 function switcher(page: Page, name: string) {
   return page.getByRole("button", { name: `Library: ${name}`, exact: true });
 }

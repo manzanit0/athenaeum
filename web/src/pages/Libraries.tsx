@@ -138,7 +138,7 @@ function FolderForm({ onOpen }: { onOpen: (opening: Opening) => void }) {
 /**
  * The page that adds and removes libraries. A library is a folder; one
  * is open at a time, and switching between the known ones is done from
- * the control under the application's name. With none open, which is
+ * the control beside the application's name. With none open, which is
  * how the application starts when a library's folder has gone missing,
  * this page is all there is until one is opened.
  */

@@ -3,6 +3,7 @@ import { api, type Job, warningsOf } from "../api";
 import { dateTime } from "../format";
 import { useLoad } from "../hooks";
 import { Link } from "../router";
+import { useSystem } from "../system";
 import { Empty, PageHeader, Problem } from "../ui";
 
 const refreshInterval = 1500;
@@ -15,8 +16,9 @@ const statusStyles: Record<Job["status"], string> = {
   failed: "bg-ribbon",
 };
 
-/** The history of conversions, transfers and syncs. */
+/** The history of conversions, transfers and syncs, with the version of the application under it. */
 export function ActivityPage() {
+  const system = useSystem();
   const jobs = useLoad(api.jobs, []);
   const busy = jobs.data?.some((job) => job.status === "running") ?? false;
   useEffect(() => {
@@ -61,6 +63,7 @@ export function ActivityPage() {
           </li>
         ))}
       </ul>
+      {system.version && <p className="mt-10 text-[0.87rem] text-soft">Athenaeum version {system.version}</p>}
     </>
   );
 }

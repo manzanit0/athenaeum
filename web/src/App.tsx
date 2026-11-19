@@ -39,9 +39,9 @@ function page(path: string, libraries: Loaded<Libraries>): ReactNode {
   if (path === "/libraries" || (libraries.data && !libraries.data.current)) {
     return <LibrariesPage libraries={libraries} />;
   }
-  const book = /^\/books\/(\d+)$/.exec(path);
+  const book = /^\/books\/(\d+)(\/edit)?$/.exec(path);
   if (book) {
-    return <BookPage key={book[1]} id={Number(book[1])} />;
+    return <BookPage key={book[1]} id={Number(book[1])} editing={book[2] !== undefined} />;
   }
   const preview = /^\/books\/(\d+)\/preview$/.exec(path);
   if (preview) {
@@ -69,13 +69,13 @@ function page(path: string, libraries: Loaded<Libraries>): ReactNode {
 }
 
 /**
- * The application frame: navigation beside the current page. The library
- * takes the whole width of the window, which a shelf of books can fill;
- * the other pages keep to a width that reads well, centred in the space
- * beside the navigation. Under the application's name is the library
- * that is open, as a control that switches to the others; the sections
- * below it belong to that library. With no library open, the sections
- * give way to the page that opens one.
+ * The application frame: a bar across the top and the current page
+ * under it. The bar holds the application's name, the library that is
+ * open, as a control that switches to the others, and the few sections
+ * of that library. That leaves the side of the window to the page: the
+ * shelf uses it to browse by category, and the other pages keep to a
+ * width that reads well. With no library open, the sections give way
+ * to the page that opens one.
  */
 export function App() {
   const path = usePath();
@@ -86,17 +86,17 @@ export function App() {
   return (
     <SystemContext.Provider value={system.data ?? fallbackSystem}>
       <NoticesProvider>
-        <div className="min-h-screen md:grid md:grid-cols-[13.5rem_minmax(0,1fr)]">
-          <aside className="border-b border-rule px-5 py-4 md:sticky md:top-0 md:flex md:h-screen md:flex-col md:border-b-0 md:border-r md:px-0 md:py-8">
-            <Link to="/" className="block font-display text-[1.6rem] font-medium tracking-[-0.01em] md:px-7">
+        <div className="flex min-h-screen flex-col">
+          <header className="flex flex-wrap items-center gap-x-7 gap-y-2 border-b border-rule bg-paper px-5 py-3 md:sticky md:top-0 md:z-30 md:h-16 md:flex-nowrap md:px-8 md:py-0">
+            <Link to="/" className="font-display text-[1.6rem] font-medium tracking-[-0.01em]">
               Athenaeum
             </Link>
             {libraries.data && (
-              <div className="mt-3 max-w-64 md:mx-5 md:mt-5">
+              <div className="min-w-0 max-w-64 flex-1 md:w-56 md:flex-none">
                 <LibrarySwitcher libraries={libraries.data} onRefused={libraries.reload} />
               </div>
             )}
-            <nav aria-label="Sections" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 md:mt-6 md:flex-col md:gap-0">
+            <nav aria-label="Sections" className="flex basis-full gap-x-6 md:h-full md:basis-auto md:gap-x-7">
               {(closed ? [] : destinations).map(({ to, label }) => {
                 const current = isCurrent(path, to);
                 return (
@@ -105,10 +105,8 @@ export function App() {
                     to={to}
                     aria-current={current ? "page" : undefined}
                     className={
-                      "border-ribbon py-1 md:border-l-[3px] md:px-6 md:py-2 " +
-                      (current
-                        ? "border-b-2 font-semibold md:border-b-0"
-                        : "border-transparent text-soft hover:text-ink md:border-transparent")
+                      "flex items-center border-b-2 py-1 md:-mb-px md:py-0 " +
+                      (current ? "border-ribbon font-semibold" : "border-transparent text-soft hover:text-ink")
                     }
                   >
                     {label}
@@ -116,11 +114,8 @@ export function App() {
                 );
               })}
             </nav>
-            {system.data && (
-              <p className="mt-auto hidden px-7 text-[0.87rem] text-soft md:block">Version {system.data.version}</p>
-            )}
-          </aside>
-          <main className={`w-full px-5 py-7 md:px-10 md:py-9 ${shelf ? "" : "mx-auto max-w-[72rem]"}`}>
+          </header>
+          <main className={shelf ? "flex-1" : "mx-auto w-full max-w-[72rem] flex-1 px-5 py-7 md:px-10 md:py-9"}>
             {page(path, libraries)}
           </main>
         </div>

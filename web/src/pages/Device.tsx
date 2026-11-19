@@ -1,14 +1,16 @@
 import { type FormEvent, useState } from "react";
-import { api, type Book, type DeviceBook, type DeviceStatus } from "../api";
+import { api, type DeviceBook, type DeviceStatus } from "../api";
 import { byline, bytes, count } from "../format";
 import { useLoad } from "../hooks";
 import { useNotices } from "../notices";
 import { Link } from "../router";
-import { blank } from "../shelf";
-import { Button, Confirm, Empty, Field, PageHeader, Problem, Section } from "../ui";
+import { Button, buttonClass, Confirm, Empty, Field, PageHeader, Problem, Section } from "../ui";
 
-/** The form that sets where the Kindle is mounted. */
-function FolderForm({ onSaved }: { onSaved: () => void }) {
+/** The address of the library opened to choose books for the Kindle. */
+const chooseBooks = "/?send";
+
+/** The form that sets where the Kindle is mounted, which can be put away again when it was asked for. */
+function FolderForm({ onSaved, onCancel }: { onSaved: () => void; onCancel?: () => void }) {
   const { notify, attempt } = useNotices();
   const settings = useLoad(api.settings, []);
   const [path, setPath] = useState<string>();
@@ -21,7 +23,7 @@ function FolderForm({ onSaved }: { onSaved: () => void }) {
     });
   };
   return (
-    <form onSubmit={save} className="flex max-w-xl flex-wrap items-end gap-3">
+    <form onSubmit={save} className="flex max-w-2xl flex-wrap items-end gap-3">
       <Field
         label="Kindle folder"
         hint="Where the Kindle shows up as a drive, such as /Volumes/Kindle. Leave empty to look in the usual places."
@@ -32,12 +34,22 @@ function FolderForm({ onSaved }: { onSaved: () => void }) {
       <Button type="submit" className="mb-[2.65rem]">
         Save folder
       </Button>
+      {onCancel && (
+        <Button variant="quiet" className="mb-[2.65rem] ml-2" onClick={onCancel}>
+          Cancel
+        </Button>
+      )}
     </form>
   );
 }
 
-/** A bar showing how full the Kindle is. */
-function Storage({ status }: { status: DeviceStatus }) {
+/**
+ * A bar showing how full the Kindle is, and where it is mounted. The
+ * place can be changed from here: the folder opens as a field under
+ * the bar.
+ */
+function Storage({ status, onMoved }: { status: DeviceStatus; onMoved: () => void }) {
+  const [moving, setMoving] = useState(false);
   const used = status.total_bytes - status.free_bytes;
   const share = status.total_bytes > 0 ? (used / status.total_bytes) * 100 : 0;
   return (
@@ -53,8 +65,24 @@ function Storage({ status }: { status: DeviceStatus }) {
         <div className="h-full bg-ink" style={{ width: `${share}%` }} />
       </div>
       <p className="mt-2 text-soft">
-        {bytes(status.free_bytes)} free of {bytes(status.total_bytes)}, mounted at {status.path}
+        {bytes(status.free_bytes)} free of {bytes(status.total_bytes)}, mounted at {status.path}.{" "}
+        {!moving && (
+          <Button variant="quiet" className="py-0 font-normal" onClick={() => setMoving(true)}>
+            Change
+          </Button>
+        )}
       </p>
+      {moving && (
+        <div className="mt-5">
+          <FolderForm
+            onSaved={() => {
+              setMoving(false);
+              onMoved();
+            }}
+            onCancel={() => setMoving(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -76,7 +104,12 @@ function OnDevice({ books, onChanged }: { books: DeviceBook[]; onChanged: () => 
       onChanged();
     });
   if (books.length === 0) {
-    return <Empty title="The Kindle has no books">Send one from the list below, or from any book's page.</Empty>;
+    return (
+      <Empty title="The Kindle has no books">
+        Choose <strong className="font-semibold text-ink">Send books from the library</strong>, or send one from any
+        book's page.
+      </Empty>
+    );
   }
   return (
     <>
@@ -123,59 +156,12 @@ function OnDevice({ books, onChanged }: { books: DeviceBook[]; onChanged: () => 
   );
 }
 
-/** The library books that can be sent to the Kindle. */
-function FromLibrary({ onDevice, onSent }: { onDevice: DeviceBook[]; onSent: () => void }) {
-  const { track, attempt } = useNotices();
-  const [filter, setFilter] = useState("");
-  const library = useLoad(() => api.books(blank), []);
-  const present = new Set(onDevice.map((book) => book.book_id));
-  const needle = filter.trim().toLowerCase();
-  const candidates = (library.data ?? []).filter(
-    (book) =>
-      !present.has(book.id) &&
-      book.formats.length > 0 &&
-      `${book.title} ${book.authors.join(" ")}`.toLowerCase().includes(needle),
-  );
-  const send = (book: Book) =>
-    attempt(async () => {
-      const job = await api.sendToDevice(book.id);
-      track(job, { done: `Sent “${book.title}” to the Kindle`, onDone: onSent });
-    });
-  return (
-    <Section title="Add from the library">
-      <Field
-        label="Filter library books"
-        type="search"
-        className="mb-4 max-w-sm"
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-      />
-      {library.data && candidates.length === 0 && (
-        <p className="text-soft">
-          {needle ? "No library book matches that filter." : "Every library book is already on the Kindle."}
-        </p>
-      )}
-      <ul aria-label="Library books not on the Kindle" className="divide-y divide-rule">
-        {candidates.map((book) => (
-          <li key={book.id} className="flex flex-wrap items-center gap-x-5 gap-y-1 py-2.5">
-            <div className="min-w-[12rem] flex-1">
-              <Link to={`/books/${book.id}`} className="font-display font-medium hover:underline">
-                {book.title}
-              </Link>
-              <span className="text-soft"> by {byline(book.authors)}</span>
-            </div>
-            <span className="text-[0.9rem] text-soft">{book.formats.map((f) => f.format.toUpperCase()).join(", ")}</span>
-            <Button aria-label={`Send to Kindle: ${book.title}`} onClick={() => send(book)}>
-              Send to Kindle
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </Section>
-  );
-}
-
-/** The books on the connected Kindle and the library books to add. */
+/**
+ * The connected Kindle: how full it is, where it is and the books on
+ * it. Books are sent to it from the library, which this page opens
+ * ready for choosing them. With no Kindle found, the page asks where
+ * it is.
+ */
 export function DevicePage() {
   const status = useLoad(api.device, []);
   const books = useLoad(
@@ -208,15 +194,18 @@ export function DevicePage() {
       {status.data && connected && (
         <>
           <Section title="Storage">
-            <Storage status={status.data} />
+            <Storage status={status.data} onMoved={refresh} />
           </Section>
-          <Section title="On the Kindle">
+          <Section
+            title="On the Kindle"
+            aside={
+              <Link to={chooseBooks} className={buttonClass()}>
+                Send books from the library
+              </Link>
+            }
+          >
             {books.error && <Problem>The books on the Kindle could not be listed: {books.error}</Problem>}
             {books.data && <OnDevice books={books.data} onChanged={refresh} />}
-          </Section>
-          <FromLibrary onDevice={books.data ?? []} onSent={refresh} />
-          <Section title="Connection">
-            <FolderForm onSaved={refresh} />
           </Section>
         </>
       )}

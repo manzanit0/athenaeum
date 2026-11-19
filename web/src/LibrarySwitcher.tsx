@@ -45,10 +45,10 @@ function Choice({ library, onChoose }: { library: LibraryEntry; onChoose: () => 
 }
 
 /**
- * The control under the application's name that says which library is
+ * The control beside the application's name that says which library is
  * open. It opens a menu of the known libraries, where choosing one
  * switches to it, with the way to add or remove libraries below them.
- * Everything else in the navigation belongs to the library named here.
+ * The sections next to it belong to the library named here.
  */
 export function LibrarySwitcher({ libraries, onRefused }: { libraries: Libraries; onRefused: () => void }) {
   const menuId = useId();

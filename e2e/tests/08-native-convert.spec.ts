@@ -3,7 +3,7 @@ import { addBook, notice } from "./helpers";
 
 test("turns a PDF into an EPUB and an AZW3 and reads the result", async ({ page, request }) => {
   const book = await addBook(request, "tide-tables.pdf");
-  await page.goto(`/books/${book.id}`);
+  await page.goto(`/books/${book.id}/edit`);
 
   await page.getByLabel("Convert to").selectOption("epub");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
@@ -29,7 +29,7 @@ test("turns a PDF into an EPUB and an AZW3 and reads the result", async ({ page,
 
 test("says why a scanned PDF cannot be converted", async ({ page, request }) => {
   const book = await addBook(request, "handbook.pdf");
-  await page.goto(`/books/${book.id}`);
+  await page.goto(`/books/${book.id}/edit`);
   await page.getByLabel("Convert to").selectOption("epub");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "its pages look like scans" })).toBeVisible();

@@ -4,6 +4,8 @@ import { addBook, fixture, notice } from "./helpers";
 test("converts a book, downloads the result and manages its files", async ({ page, request }) => {
   const book = await addBook(request, "piranesi.epub");
   await page.goto(`/books/${book.id}`);
+  await expect(page.getByLabel("Convert to")).toHaveCount(0);
+  await page.getByRole("link", { name: "Edit book" }).click();
 
   await page.getByLabel("Convert to").selectOption("azw3");
   await page.getByRole("button", { name: "Convert", exact: true }).click();
@@ -22,4 +24,8 @@ test("converts a book, downloads the result and manages its files", async ({ pag
   await page.getByLabel("Add a file").setInputFiles(fixture("roadside.mobi"));
   await expect(notice(page, "File added")).toBeVisible();
   await expect(page.getByRole("listitem").filter({ hasText: "Piranesi - Susanna Clarke.mobi" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Done" }).click();
+  await expect(page.getByRole("link", { name: "Download MOBI" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Remove MOBI" })).toHaveCount(0);
 });

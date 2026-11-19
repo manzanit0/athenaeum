@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { addBook, fixture, kindleDocuments, notice } from "./helpers";
+import { addBook, fixture, kindleDocuments, notice, shelfBook } from "./helpers";
 
 test("sends a book to the Kindle and removes it again", async ({ page, request }) => {
   const book = await addBook(request, "stoner.epub");
@@ -23,18 +23,42 @@ test("sends a book to the Kindle and removes it again", async ({ page, request }
   expect(fs.existsSync(onDisk)).toBe(false);
 });
 
-test("adds a library book from the Kindle page", async ({ page, request }) => {
+test("sends library books to the Kindle, starting from the Kindle page", async ({ page, request }) => {
   await addBook(request, "beloved.epub");
+  await addBook(request, "skerries.epub");
   await page.goto("/kindle");
+  await expect(page.getByLabel("Filter library books")).toHaveCount(0);
 
-  const candidates = page.getByRole("list", { name: "Library books not on the Kindle" });
-  await page.getByLabel("Filter library books").fill("beloved");
-  await candidates.getByRole("button", { name: "Send to Kindle: Beloved" }).click();
+  await page.getByRole("link", { name: "Send books from the library" }).click();
+  await expect(page).toHaveURL("/");
+  const selected = page.getByRole("region", { name: "Selected books" });
+  await expect(selected).toContainText("Tick the books to send to the Kindle");
+  await selected.getByRole("button", { name: "Cancel" }).click();
+  await expect(page).toHaveURL("/kindle");
+
+  await page.getByRole("link", { name: "Send books from the library" }).click();
+  await page.getByLabel("Search library").fill("beloved");
+  await expect(shelfBook(page, "Letters from the Skerries", "Tove Aldane")).toHaveCount(0);
+  await shelfBook(page, "Beloved", "Toni Morrison").click();
+  await expect(page.getByLabel("Select Beloved")).toBeChecked();
+  await expect(selected).toContainText("1 book selected");
+  await selected.getByRole("button", { name: "Send to Kindle" }).click();
   await expect(notice(page, "Sent “Beloved” to the Kindle")).toBeVisible();
 
+  await expect(page).toHaveURL("/kindle");
   const onKindle = page.getByRole("list", { name: "Books on the Kindle" });
   await expect(onKindle.getByRole("listitem").filter({ hasText: "Beloved" })).toBeVisible();
-  await expect(candidates.getByRole("listitem")).toHaveCount(0);
+
+  await page.goto("/");
+  await page.getByLabel("Search library").fill("o");
+  await shelfBook(page, "Beloved", "Toni Morrison").hover();
+  await page.getByLabel("Select Beloved").check();
+  await shelfBook(page, "Letters from the Skerries", "Tove Aldane").click();
+  await expect(selected).toContainText("2 books selected");
+  await selected.getByRole("button", { name: "Send to Kindle" }).click();
+  await expect(notice(page, "Sent “Letters from the Skerries” to the Kindle, skipped 1 already on it")).toBeVisible();
+  await expect(selected).toHaveCount(0);
+  await expect(page).toHaveURL(/\/\?q=o$/);
 });
 
 test("copies a book found on the Kindle into the library", async ({ page }) => {
@@ -50,5 +74,5 @@ test("copies a book found on the Kindle into the library", async ({ page }) => {
 
   await row.getByRole("link", { name: "In library" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Roadside Picnic" })).toBeVisible();
-  await expect(page.getByLabel("Authors")).toHaveValue("Arkady Strugatsky");
+  await expect(page.getByRole("link", { name: "Books by Arkady Strugatsky" })).toBeVisible();
 });
