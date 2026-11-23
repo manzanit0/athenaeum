@@ -287,7 +287,11 @@ with the library details and cover written into it.
 **EPUB to AZW3.** Every chapter is kept as it is and repackaged as KF8,
 the format inside AZW3 files: links between chapters, footnote jumps,
 the nested table of contents, stylesheets and JPEG, PNG and GIF images
-all carry over, and the cover and a thumbnail are embedded. Left out,
+all carry over, and the cover and a thumbnail are embedded. A book
+without a cover gets one drawn from its title and authors, so the Kindle
+has a picture to show for it on its shelf; a title in a script the built
+in font lacks (it has Latin, Greek and Cyrillic) is left without. Left
+out,
 and reported as warnings on the job: embedded fonts (the Kindle uses its
 own), scripts, and images in formats a Kindle cannot show, which are
 replaced by their alternative text. EPUB files protected by DRM and
@@ -545,11 +549,13 @@ unchanged, as a child process.
 ### External tools
 
 The Go standard library covers the server, the EPUB/MOBI/PDF metadata
-parsers, the Kindle file handling and the built in converters. Three
+parsers, the Kindle file handling and the built in converters. Four
 things are delegated:
 
 - **SQLite**: `modernc.org/sqlite`, a pure Go driver, so the binary stays
   static and builds without a C toolchain.
+- **Text on generated covers**: `golang.org/x/image` draws the title and
+  authors of a book without a cover, in the Go fonts it carries.
 - **calibre**: `ebook-convert` does the conversions the built in
   converters do not cover and prepares previews of Kindle formats;
   `ebook-meta` writes details into files sent to the Kindle and extracts
