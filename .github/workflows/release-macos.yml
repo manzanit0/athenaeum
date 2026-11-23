@@ -1,0 +1,87 @@
+name: Release macOS app
+
+# Every push to the default branch builds Athenaeum.app and publishes it
+# as a GitHub release. The steps mirror `task macos:app`, except that both
+# binaries are built for Apple silicon and Intel and joined into one
+# universal app.
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-macos
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    env:
+      APP: bin/Athenaeum.app
+      MIN_MACOS: "13.0" # keep in step with LSMinimumSystemVersion
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Work out the version
+        id: version
+        run: |
+          short=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' macos/Info.plist)
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "tag=v$short-build.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Build the server
+        # web/dist is committed, so the interface is embedded as is.
+        env:
+          CGO_ENABLED: "0"
+          GOOS: darwin
+        run: |
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build
+          GOARCH=arm64 go build -trimpath -o build/server-arm64 .
+          GOARCH=amd64 go build -trimpath -o build/server-x86_64 .
+          lipo -create -output "$APP/Contents/MacOS/athenaeum-server" \
+            build/server-arm64 build/server-x86_64
+
+      - name: Build the app shell
+        run: |
+          for arch in arm64 x86_64; do
+            swiftc -O -parse-as-library \
+              -target "$arch-apple-macos$MIN_MACOS" \
+              -o "build/shell-$arch" macos/Sources/*.swift
+          done
+          lipo -create -output "$APP/Contents/MacOS/Athenaeum" \
+            build/shell-arm64 build/shell-x86_64
+
+      - name: Assemble and sign the bundle
+        # Signed ad hoc, as `task macos:app` does: the app is neither
+        # signed with a Developer ID nor notarized.
+        run: |
+          cp macos/Info.plist "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $GITHUB_RUN_NUMBER" "$APP/Contents/Info.plist"
+          cp macos/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+          codesign --force --sign - "$APP/Contents/MacOS/athenaeum-server"
+          codesign --force --sign - "$APP"
+          codesign --verify --deep --strict "$APP"
+          lipo -archs "$APP/Contents/MacOS/Athenaeum"
+          lipo -archs "$APP/Contents/MacOS/athenaeum-server"
+
+      - name: Zip the app
+        # ditto keeps the signature and extended attributes intact.
+        run: ditto -c -k --keepParent "$APP" "Athenaeum-${{ steps.version.outputs.tag }}-macos-universal.zip"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            "Athenaeum-$TAG-macos-universal.zip" \
+            --target "$GITHUB_SHA" \
+            --title "Athenaeum ${{ steps.version.outputs.short }} (build $GITHUB_RUN_NUMBER)" \
+            --generate-notes
