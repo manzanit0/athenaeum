@@ -1,6 +1,6 @@
 import { type FormEvent, Fragment, useEffect, useId, useState } from "react";
-import { api, type Book, downloadUrl, type Metadata, type Tally, warningsOf } from "../api";
-import { same, tidy, withCategory } from "../categories";
+import { api, type Book, downloadUrl, type Metadata, warningsOf } from "../api";
+import { CategoryPicker } from "../CategoryPicker";
 import { Cover } from "../Cover";
 import { byline, bytes, count, languageName, monthNames, publishedOn, splitList } from "../format";
 import { useLoad } from "../hooks";
@@ -80,105 +80,6 @@ function metadataOf(draft: Draft, tags: string[]): Metadata {
       .join("-"),
     description: draft.description.trim(),
   };
-}
-
-/** The most categories a book is filed under. */
-const mostCategories = 3;
-
-/**
- * The categories of a book: those it is filed under, each removable, a
- * list of the library's categories to add one from and a field to make a
- * new one. Adding a category replaces a less specific one of its branch.
- */
-function CategoryPicker({
-  value,
-  known,
-  onChange,
-}: {
-  value: string[];
-  known: Tally[];
-  onChange: (next: string[]) => void;
-}) {
-  const id = useId();
-  const [fresh, setFresh] = useState("");
-  const full = value.length >= mostCategories;
-  const offered = known.filter((entry) => !value.some((tag) => same(tag, entry.value)));
-  const add = (name: string) => {
-    if (tidy(name)) {
-      onChange(withCategory(value, tidy(name)));
-      setFresh("");
-    }
-  };
-  const field = "rounded-sm border border-rule bg-sheet px-3 py-2 focus:border-ink focus:outline-none focus:ring-2 focus:ring-ribbon/40";
-  return (
-    <fieldset className="min-w-0 sm:col-span-6">
-      <legend className="mb-1 font-medium">Categories</legend>
-      {value.length === 0 && <p className="text-soft">This book is not filed under a category yet.</p>}
-      <ul className="flex flex-wrap gap-2">
-        {value.map((tag) => (
-          <li key={tag} className="inline-flex items-center gap-2 rounded-sm border border-ink py-1 pl-2.5 pr-1 leading-tight">
-            {tag}
-            <button
-              type="button"
-              aria-label={`Remove ${tag}`}
-              onClick={() => onChange(value.filter((entry) => entry !== tag))}
-              className="grid size-5 place-items-center rounded-sm text-soft hover:bg-ink/10 hover:text-ink"
-            >
-              <span aria-hidden>×</span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
-        <div>
-          <label htmlFor={`${id}-known`} className="mb-1 block text-[0.93rem] text-soft">
-            Add a category
-          </label>
-          <select
-            id={`${id}-known`}
-            value=""
-            disabled={full || offered.length === 0}
-            onChange={(event) => add(event.target.value)}
-            className={`${field} max-w-full disabled:opacity-50`}
-          >
-            <option value="">Choose one</option>
-            {offered.map((entry) => (
-              <option key={entry.value} value={entry.value}>
-                {entry.value}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`${id}-fresh`} className="mb-1 block text-[0.93rem] text-soft">
-            New category
-          </label>
-          <div className="flex gap-2">
-            <input
-              id={`${id}-fresh`}
-              value={fresh}
-              disabled={full}
-              placeholder="History / Military"
-              onChange={(event) => setFresh(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  add(fresh);
-                }
-              }}
-              className={`${field} w-[14rem] max-w-full disabled:opacity-50`}
-            />
-            <Button disabled={full || !tidy(fresh)} onClick={() => add(fresh)}>
-              Add
-            </Button>
-          </div>
-        </div>
-      </div>
-      <p className="mt-2 max-w-[62ch] text-[0.87rem] text-soft">
-        A book takes up to three categories, the most specific ones. Write a category below another as Parent / Name.
-      </p>
-    </fieldset>
-  );
 }
 
 /**
@@ -605,6 +506,48 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
   );
 }
 
+/** How many categories the top of the page lists before the rest are put behind a button. */
+const categoriesShown = 6;
+
+/**
+ * The categories a book is filed under, each leading to its shelf. A
+ * book that was imported with a great many lists the first few, so the
+ * page still opens on the book, and the rest on request.
+ */
+function FiledUnder({ tags }: { tags: string[] }) {
+  const [unfolded, setUnfolded] = useState(false);
+  const folded = tags.length > categoriesShown + 2 && !unfolded;
+  if (tags.length === 0) {
+    return null;
+  }
+  return (
+    <ul aria-label="Filed under" className="mt-3 flex flex-wrap items-center gap-2">
+      {(folded ? tags.slice(0, categoriesShown) : tags).map((tag) => (
+        <li key={tag}>
+          <Link
+            to={viewHref({ ...blank, tags: [tag] })}
+            aria-label={`Books in ${tag}`}
+            className="block rounded-sm border border-rule px-2.5 py-0.5 text-[0.93rem] hover:border-ink"
+          >
+            {tag}
+          </Link>
+        </li>
+      ))}
+      {folded && (
+        <li>
+          <button
+            type="button"
+            onClick={() => setUnfolded(true)}
+            className="rounded-sm px-1 text-[0.93rem] text-soft underline underline-offset-4 hover:text-ink"
+          >
+            and {tags.length - categoriesShown} more
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /**
  * One book. The page says what the book is and offers what a reader
  * does with it: read it, send it to the Kindle, download a file. Its
@@ -659,21 +602,7 @@ export function BookPage({ id, editing }: { id: number; editing: boolean }) {
               </Fragment>
             ))}
           </p>
-          {book.data.tags.length > 0 && (
-            <ul aria-label="Filed under" className="mt-3 flex flex-wrap gap-2">
-              {book.data.tags.map((tag) => (
-                <li key={tag}>
-                  <Link
-                    to={viewHref({ ...blank, tags: [tag] })}
-                    aria-label={`Books in ${tag}`}
-                    className="block rounded-sm border border-rule px-2.5 py-0.5 text-[0.93rem] hover:border-ink"
-                  >
-                    {tag}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
+          <FiledUnder tags={book.data.tags} />
         </div>
         {editing ? (
           <Link

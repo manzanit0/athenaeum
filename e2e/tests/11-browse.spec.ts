@@ -116,10 +116,14 @@ test("files books under categories, browses by them and tidies them up", async (
   await page.goto(`/books/${knots.id}/edit`);
   const filed = page.getByRole("group", { name: "Categories" });
   await expect(filed.getByRole("listitem")).toContainText(["Voyages / Ropework"]);
-  await filed.getByLabel("Add a category").selectOption("Voyages");
+  const category = filed.getByLabel("Add a category");
+  await category.fill("voyages");
+  await filed.getByRole("option", { name: "Voyages 3 books" }).click();
   await expect(filed.getByRole("listitem")).toContainText(["Voyages"]);
-  await filed.getByLabel("Add a category").selectOption("Voyages / Ropework");
-  await filed.getByLabel("Add a category").selectOption("Voyages / Seafaring");
+  await category.fill("ropew");
+  await category.press("Enter");
+  await category.fill("Voyages / Seafaring");
+  await category.press("Enter");
   await expect(filed.getByRole("listitem")).toContainText(["Voyages / Ropework", "Voyages / Seafaring"]);
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(notice(page, "Changes saved")).toBeVisible();

@@ -53,11 +53,18 @@ func main() {
 		"anchors.epub":     booktest.EPUB(booktest.Book{Title: "Anchors Aweigh", Author: "Abel Finch", Language: "en"}),
 		"mooring.epub":     booktest.EPUB(booktest.Book{Title: "Mooring Lines", Author: "Cora Pike", Language: "en"}),
 		"skerries.epub":    booktest.EPUB(booktest.Book{Title: "Letters from the Skerries", Author: "Tove Aldane", Language: "en"}),
-		"solaris.mobi":     booktest.MOBI(booktest.Book{Title: "Solaris", Author: "Stanislaw Lem", Tags: []string{"Science Fiction"}}),
-		"roadside.mobi":    booktest.MOBI(booktest.Book{Title: "Roadside Picnic", Author: "Arkady Strugatsky"}),
-		"handbook.pdf":     booktest.PDF(booktest.Book{Title: "Typography Handbook", Author: "Robert Bringhurst"}),
-		"cover.png":        booktest.PNG(color.RGBA{R: 150, G: 40, B: 60, A: 255}),
-		"malware.exe":      []byte("MZ"),
+		"packet.epub": booktest.EPUB(booktest.Book{
+			Title: "The Packet Boat", Author: "Hugh Carrow", Language: "en",
+			Tags: []string{
+				"Fiction", "FIC000000", "General", "Adventure", "Sea Stories", "Voyages and Travels",
+				"Classics", "Literary", "Historical", "19th Century", "Maritime", "English Literature",
+			},
+		}),
+		"solaris.mobi":  booktest.MOBI(booktest.Book{Title: "Solaris", Author: "Stanislaw Lem", Tags: []string{"Science Fiction"}}),
+		"roadside.mobi": booktest.MOBI(booktest.Book{Title: "Roadside Picnic", Author: "Arkady Strugatsky"}),
+		"handbook.pdf":  booktest.PDF(booktest.Book{Title: "Typography Handbook", Author: "Robert Bringhurst"}),
+		"cover.png":     booktest.PNG(color.RGBA{R: 150, G: 40, B: 60, A: 255}),
+		"malware.exe":   []byte("MZ"),
 	}
 	for name, data := range files {
 		if err := os.WriteFile(filepath.Join(os.Args[1], name), data, 0o644); err != nil {
