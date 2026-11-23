@@ -9,7 +9,9 @@
 # Environment:
 #   ATHENAEUM_VERSION      Release tag to install, e.g. v0.1.0-build.7.
 #                          Default: the latest release.
-#   ATHENAEUM_INSTALL_DIR  Where the binary goes. Default: /usr/local/bin
+#   ATHENAEUM_INSTALL_DIR  Where the binary goes. Default: the folder of
+#                          the `athenaeum` already on the PATH, so that
+#                          one is updated; without one, /usr/local/bin
 #                          when it is writable, otherwise ~/.local/bin.
 #   ATHENAEUM_RELEASE_URL  Folder holding the archives and checksums.txt,
 #                          for mirrors. Overrides ATHENAEUM_VERSION.
@@ -78,8 +80,20 @@ got=$(sha256 "$tmp/$archive")
 
 tar -xzf "$tmp/$archive" -C "$tmp" athenaeum
 
+# An `athenaeum` already on the PATH is updated where it is, so a second
+# copy never ends up shadowing it or being shadowed by it.
+existing=$(command -v athenaeum 2>/dev/null || true)
+case "$existing" in
+    /*) ;;
+    *) existing="" ;;
+esac
+
 if [ -n "${ATHENAEUM_INSTALL_DIR:-}" ]; then
     dir=$ATHENAEUM_INSTALL_DIR
+elif [ -n "$existing" ]; then
+    dir=$(dirname "$existing")
+    echo "Updating $existing"
+    [ -w "$dir" ] || fail "$dir is not writable; run the script as a user who can write there, or set ATHENAEUM_INSTALL_DIR"
 elif [ -d /usr/local/bin ] && [ -w /usr/local/bin ]; then
     dir=/usr/local/bin
 else

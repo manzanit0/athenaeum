@@ -83,9 +83,10 @@ That installs the server from the latest
 [release](https://github.com/manzanit0/athenaeum/releases), which has
 builds for Linux and macOS on amd64 and arm64. The script checks the
 download against the release's checksums and puts `athenaeum` in
-`/usr/local/bin` when it is writable, otherwise in `~/.local/bin`;
-`ATHENAEUM_INSTALL_DIR` picks another folder and `ATHENAEUM_VERSION`
-another release.
+`/usr/local/bin` when it is writable, otherwise in `~/.local/bin`.
+Running it again updates the `athenaeum` already on the `PATH`, wherever
+that one is. `ATHENAEUM_INSTALL_DIR` picks another folder and
+`ATHENAEUM_VERSION` another release.
 
 or from a checkout:
 
