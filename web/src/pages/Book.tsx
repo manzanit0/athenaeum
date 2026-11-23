@@ -7,7 +7,7 @@ import { useLoad } from "../hooks";
 import { useNotices } from "../notices";
 import { Link, navigate } from "../router";
 import { blank, shelfHref, viewHref } from "../shelf";
-import { useSystem } from "../system";
+import { usable, useSystem } from "../system";
 import { Button, buttonClass, Confirm, Field, Problem, Section, TextArea } from "../ui";
 
 /** The metadata form values, with lists held as comma separated text. */
@@ -364,6 +364,22 @@ function About({ book }: { book: Book }) {
 }
 
 /**
+ * What to do with the files the library only keeps. A Pages document
+ * is one: only the Pages app opens it, so that is where it is turned
+ * into a file the library can read, convert and send to the Kindle.
+ */
+function KeptNote({ formats }: { formats: string[] }) {
+  const names = formats.map((format) => format.toUpperCase()).join(" and ");
+  return (
+    <p className="mt-3 max-w-[62ch] text-[0.9rem] text-soft">
+      The {names} file is kept as it is: it can be downloaded, but not read here, converted or sent to the Kindle.
+      {formats.includes("pages") &&
+        " To get a file that can, open it in the Pages app, export it as EPUB or Word, and add that file to this book."}
+    </p>
+  );
+}
+
+/**
  * The list of a book's files, each of which can be downloaded. While
  * the book is being edited, files can also be removed, converted and
  * added.
@@ -373,8 +389,12 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
   const { notify, track, attempt } = useNotices();
   const builtIn = (target: string) =>
     book.formats.some((file) => system.native_conversions[file.format]?.includes(target));
+  const kept = book.formats.filter((file) => system.kept_formats.includes(file.format));
   const targets = system.output_formats.filter(
-    (format) => !book.formats.some((f) => f.format === format) && (system.can_convert || builtIn(format)),
+    (format) =>
+      usable(book, system) &&
+      !book.formats.some((f) => f.format === format) &&
+      (system.can_convert || builtIn(format)),
   );
   const [target, setTarget] = useState("");
   const chosen = targets.includes(target) ? target : (targets[0] ?? "");
@@ -426,6 +446,7 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
           </li>
         ))}
       </ul>
+      {kept.length > 0 && <KeptNote formats={kept.map((file) => file.format)} />}
       {editing && (
         <>
           <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-4">
@@ -467,9 +488,9 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
           </div>
           {!system.can_convert && system.version && (
             <p className="mt-3 max-w-[62ch] text-[0.9rem] text-soft">
-              EPUB and AZW3 convert to each other, and PDF to EPUB or AZW3, without anything else installed. Other
-              conversions need
-              calibre's ebook-convert, which was not found on this machine. The Docker image includes it.
+              EPUB and AZW3 convert to each other, and PDF and Word documents to EPUB or AZW3, without anything
+              else installed. Other conversions need calibre's ebook-convert, which was not found on this machine.
+              The Docker image includes it.
             </p>
           )}
         </>
@@ -486,10 +507,12 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
  * edited.
  */
 function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; onChanged: (book?: Book) => void }) {
+  const system = useSystem();
   const { notify, track, attempt } = useNotices();
   const device = useLoad(api.device, []);
   const [confirming, setConfirming] = useState(false);
   const connected = device.data?.connected ?? false;
+  const openable = usable(book, system);
 
   const send = () =>
     attempt(async () => {
@@ -516,7 +539,7 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
 
   return (
     <div className="mx-auto w-full max-w-[15rem] md:mx-0">
-      {book.formats.length > 0 ? (
+      {openable ? (
         <Link to={`/books/${book.id}/preview`} aria-label={`Read ${book.title}`} className="cover-action relative block">
           <Cover book={book} />
           <span aria-hidden className="cover-scrim absolute inset-0 rounded-l-[2px] rounded-r-[5px] bg-ink/35" />
@@ -530,7 +553,7 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
         <Cover book={book} />
       )}
       <div className="mt-6 flex flex-col gap-2.5">
-        <Button variant="primary" onClick={send} disabled={!connected || book.formats.length === 0}>
+        <Button variant="primary" onClick={send} disabled={!connected || !openable}>
           Send to Kindle
         </Button>
         {device.data && !connected && (

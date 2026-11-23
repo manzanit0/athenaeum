@@ -82,6 +82,7 @@ export interface SystemInfo {
   can_convert: boolean;
   native_conversions: Record<string, string[]>;
   can_embed: boolean;
+  kept_formats: string[];
 }
 
 /** Returns what a finished job says it had to leave out. */

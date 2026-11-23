@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/manzanit0/athenaeum/internal/azw3"
+	"github.com/manzanit0/athenaeum/internal/docx"
 	"github.com/manzanit0/athenaeum/internal/kf8"
 	"github.com/manzanit0/athenaeum/internal/meta"
 	"github.com/manzanit0/athenaeum/internal/reflow"
@@ -28,9 +29,21 @@ const (
 // formats they can turn them into.
 var nativeTargets = map[string][]string{
 	"azw3": {"epub"},
+	"docx": {"azw3", "epub"},
 	"epub": {"azw3"},
 	"pdf":  {"azw3", "epub"},
 }
+
+// keptHints gives, for every format the library only keeps, what to do
+// to get a book that can be read: neither the built in converters nor
+// calibre open these formats.
+var keptHints = map[string]string{
+	"pages": "open the book in the Pages app, export it as EPUB or Word, and add that file",
+}
+
+// ErrKept is returned when a book in a format the library only keeps
+// is asked to be read, converted or sent to the e-reader.
+var ErrKept = errors.New("this file can only be kept and downloaded")
 
 // kindleFormats lists the formats whose files may hold a book in KF8,
 // which the built in converters can turn into an EPUB. Only AZW3 files
@@ -63,6 +76,24 @@ type Report struct {
 	Warnings []string `json:"warnings"`
 }
 
+// KeptFormats returns the formats the library only keeps.
+func KeptFormats() []string {
+	return slices.Sorted(maps.Keys(keptHints))
+}
+
+// Kept reports whether the library only keeps books in the given
+// format, without being able to open them.
+func Kept(format string) bool {
+	_, kept := keptHints[format]
+	return kept
+}
+
+// KeptError returns the error that says a file in the given format can
+// only be kept, with what to do about it.
+func KeptError(format string) error {
+	return fmt.Errorf("%w: %s", ErrKept, keptHints[format])
+}
+
 // NativeTargets returns, for every format the built in converters read,
 // the formats they can turn it into.
 func NativeTargets() map[string][]string {
@@ -89,9 +120,13 @@ func (t *Tools) native(from, to string) bool {
 
 // CanRead reports whether a book in the given format can, or may, be
 // turned into an EPUB for reading: with calibre any format can, without
-// it the Kindle formats are worth trying.
+// it the formats the built in converters read can and the Kindle
+// formats are worth trying. The formats that are only kept never can.
 func (t *Tools) CanRead(format string) bool {
-	return t.CanConvert() || slices.Contains(kindleFormats, format)
+	if Kept(format) {
+		return false
+	}
+	return t.CanConvert() || ReadsNatively(format) || slices.Contains(kindleFormats, format)
 }
 
 // ReadsNatively reports whether books in the given format are always
@@ -119,13 +154,33 @@ func (t *Tools) unpack(ctx context.Context, r Request) (*Report, bool, error) {
 // Supports reports whether a book in the format from can be converted
 // to the format to, by the built in converters or by calibre.
 func (t *Tools) Supports(from, to string) bool {
-	return from != to && (slices.Contains(nativeTargets[from], to) || t.CanConvert())
+	return from != to && !Kept(from) && (slices.Contains(nativeTargets[from], to) || t.CanConvert())
+}
+
+// intoEPUB turns the PDF or the Word document of r into an EPUB at dst
+// with the built in converters and returns what they had to leave out.
+func intoEPUB(ctx context.Context, from string, r Request, dst string) ([]string, error) {
+	if from == "docx" {
+		report, err := docx.Convert(ctx, r.In, dst, docx.Options{Metadata: r.Metadata, Cover: r.Cover, ID: r.ID})
+		if err != nil {
+			return nil, err
+		}
+		return report.Warnings, nil
+	}
+	report, err := reflow.Convert(ctx, r.In, dst, reflow.Options{Metadata: r.Metadata, Cover: r.Cover})
+	if err != nil {
+		return nil, err
+	}
+	return report.Warnings, nil
 }
 
 // Convert carries out the conversion r with the built in converters when
 // they cover it and with calibre otherwise.
 func (t *Tools) Convert(ctx context.Context, r Request) (*Report, error) {
 	from, to := formatOf(r.In), formatOf(r.Out)
+	if Kept(from) {
+		return nil, KeptError(from)
+	}
 	if to == "epub" && slices.Contains(kindleFormats, from) && !(t.PreferCalibre && t.CanConvert()) {
 		if report, done, err := t.unpack(ctx, r); done {
 			return report, err
@@ -140,7 +195,7 @@ func (t *Tools) Convert(ctx context.Context, r Request) (*Report, error) {
 	}
 	report := &Report{Engine: EngineNative, Warnings: []string{}}
 	epub := r.In
-	if from == "pdf" {
+	if from != "epub" {
 		epub = r.Out
 		if to != "epub" {
 			staged, err := os.CreateTemp(filepath.Dir(r.Out), "staged-*.epub")
@@ -151,11 +206,11 @@ func (t *Tools) Convert(ctx context.Context, r Request) (*Report, error) {
 			defer os.Remove(staged.Name())
 			epub = staged.Name()
 		}
-		reflowed, err := reflow.Convert(ctx, r.In, epub, reflow.Options{Metadata: r.Metadata, Cover: r.Cover})
+		warnings, err := intoEPUB(ctx, from, r, epub)
 		if err != nil {
 			return nil, err
 		}
-		report.Warnings = append(report.Warnings, reflowed.Warnings...)
+		report.Warnings = append(report.Warnings, warnings...)
 	}
 	if to == "azw3" {
 		packed, err := azw3.Convert(ctx, epub, r.Out, azw3.Options{Metadata: r.Metadata, Cover: r.Cover, ID: r.ID})

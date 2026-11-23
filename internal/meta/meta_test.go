@@ -162,3 +162,53 @@ func TestDates(t *testing.T) {
 		}
 	}
 }
+
+// TestReadDOCX checks that the properties and the preview picture of a
+// Word document are read.
+func TestReadDOCX(t *testing.T) {
+	book := sample
+	book.Description = "A lone envoy visits the planet Winter."
+	book.Cover = booktest.JPEG(color.RGBA{R: 30, G: 60, B: 90, A: 255})
+	path := write(t, "book.docx", booktest.DOCX(book))
+	got, cover := meta.Read(path, "unhelpful name.docx")
+	want := meta.Metadata{
+		Title:       sample.Title,
+		Authors:     []string{sample.Author},
+		Language:    sample.Language,
+		Description: book.Description,
+		Tags:        sample.Tags,
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("metadata mismatch\n got: %+v\nwant: %+v", got, want)
+	}
+	if cover == nil || cover.Ext != "jpg" || len(cover.Data) != len(book.Cover) {
+		t.Errorf("cover = %+v, want the preview picture", cover)
+	}
+	bare := write(t, "bare.docx", booktest.DOCX(booktest.Book{}))
+	got, cover = meta.Read(bare, "Dune - Frank Herbert.docx")
+	if got.Title != "Dune" || !reflect.DeepEqual(got.Authors, []string{"Frank Herbert"}) || cover != nil {
+		t.Errorf("a document without properties gave %q by %q with cover %v", got.Title, got.Authors, cover)
+	}
+}
+
+// TestReadPages checks that a Pages document gets its name from its
+// file and its cover from the picture of its first page, and that
+// another file with its extension gets neither.
+func TestReadPages(t *testing.T) {
+	preview := booktest.JPEG(color.RGBA{R: 200, G: 100, A: 255})
+	path := write(t, "sketches.pages", booktest.Pages(booktest.Book{Title: "Inside", Cover: preview}))
+	got, cover := meta.Read(path, "Shore Sketches - Edda Voss.pages")
+	if got.Title != "Shore Sketches" || !reflect.DeepEqual(got.Authors, []string{"Edda Voss"}) {
+		t.Errorf("got %q by %q, want the name of the file", got.Title, got.Authors)
+	}
+	if cover == nil || cover.Ext != "jpg" || len(cover.Data) != len(preview) {
+		t.Errorf("cover = %+v, want the picture of the first page", cover)
+	}
+	if format, ok := meta.FormatOf("Shore Sketches.PAGES"); format != "pages" || !ok {
+		t.Errorf("FormatOf = %q, %v", format, ok)
+	}
+	other := write(t, "other.pages", booktest.EPUB(sample))
+	if _, cover := meta.Read(other, "other.pages"); cover != nil {
+		t.Errorf("a file that is not a Pages document gave the cover %+v", cover)
+	}
+}

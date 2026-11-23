@@ -19,8 +19,9 @@ embedded in it. The screenshots show a made-up sample library.
 
 ### Keeps your books in one browsable library
 
-Upload or drag in EPUB, MOBI, AZW3, PDF and more; title, author, cover
-and the other details are read from the file where it carries them.
+Upload or drag in EPUB, MOBI, AZW3, PDF, Word documents and more;
+title, author, cover and the other details are read from the file where
+it carries them.
 Browse the shelf as a grid of covers or as a sortable list, search it,
 and narrow it to a shelf: a category, a language or a format.
 
@@ -39,8 +40,9 @@ see [Libraries](#libraries).
 A book's page says what the book is and offers its files. "Edit book"
 opens its details: every field and the cover are editable, and the
 files on disk are renamed to match. A book holds one file per format;
-convert between them there. EPUB to AZW3 and back, and PDF to EPUB or
-AZW3, are built in; with calibre installed, many more.
+convert between them there. EPUB to AZW3 and back, and PDF and Word
+documents to EPUB or AZW3, are built in; with calibre installed, many
+more.
 
 ![A book being edited: its details, categories and files, with the conversion below](docs/screenshots/book.png)
 
@@ -124,7 +126,10 @@ Everything is set through environment variables.
 
 - Upload or drag in EPUB, MOBI, AZW3, PDF and more.
 - Title, authors, series, publisher, ISBN, tags and cover are read from EPUB and
-  MOBI/AZW files; title, author and keywords from PDF.
+  MOBI/AZW files; title, author and keywords from PDF; title, authors,
+  keywords, description and language from Word documents, with their
+  preview picture as the cover when they carry one.
+- A Pages document gets its cover from the picture Pages saves with it.
 - Anything else falls back to a `Title - Author.ext` file name.
 - A book's page shows the book as text, with its files to download.
   "Edit book" opens its details, cover and files, and the way to delete
@@ -244,8 +249,9 @@ library/
 
 ### Conversion
 
-Three conversions are built in and need nothing installed: EPUB to AZW3
-and back, and PDF to EPUB. With calibre installed, any format its
+Four conversions are built in and need nothing installed: EPUB to AZW3
+and back, and PDF and Word documents (DOCX) to EPUB. With calibre
+installed, any format its
 `ebook-convert` can read converts to AZW3, DOCX, EPUB, FB2, HTMLZ, MOBI,
 PDF, RTF or TXT. Either way the result lands in the book's file list
 with the library details and cover written into it.
@@ -281,7 +287,31 @@ left out is listed as warnings on the job. Refused: encrypted PDFs, and
 PDFs without readable text, which are scans (there is no OCR) or use
 fonts that do not say which characters they hold.
 
-**PDF to AZW3** runs the two in a row.
+**DOCX to EPUB.** The text of a Word document is carried over with its
+structure: headings, bold, italic, underlined, struck, raised and
+lowered text, bulleted and numbered lists with their nesting, tables,
+quotations, pictures in JPEG, PNG or GIF, links to addresses and to
+places in the document, and footnotes and endnotes, which are gathered
+in a section of their own and linked both ways. A new section starts at
+every heading of the highest level the document uses and at every page
+break. Headings are told by their outline level or by the names Word
+gives its heading styles; a document that marks none gets them from
+text set clearly larger than the rest. The page layout is left behind,
+and so are tables of contents and page numbers, which the book has no
+use for, text deleted with changes tracked, headers and footers, and
+comments. Left out and reported as warnings on the job: text boxes,
+equations, embedded objects and pictures in other formats. It is tested
+on documents written by calibre, by Apple's text tools and by Pages,
+not on ones written by Word itself.
+
+**PDF to AZW3** and **DOCX to AZW3** run two in a row.
+
+**Pages.** A Pages document is kept and can be downloaded, with the
+picture Pages saves of its first page as its cover and its title and
+author taken from the file name. It cannot be read, converted or sent
+to the Kindle: its format is not published and calibre does not read
+it either. The book's page says what to do instead, which is to export
+it from the Pages app as EPUB or Word and add that file.
 
 The AZW3 files follow the layout calibre writes, down to the per-record
 indexing data, and are checked against calibre's own MOBI inspector
@@ -432,7 +462,7 @@ answers `503` with `"code": "no_library"` when none is open.
 | `DELETE /api/libraries?path=` | Removes a library from the list and leaves its folder alone. `409` for the open library. |
 | `GET /api/libraries/check?path=` | What is at a typed path, changing nothing: `kind` is `library`, `empty`, `other`, `new` or `invalid`, with the tidied `path` and, when invalid, the `detail`. |
 | `GET /api/libraries/folders?path=` | The folders a typed path could go on to name. |
-| `GET /api/system` | Version, supported formats, whether calibre is available (`can_convert`) and what converts without it (`native_conversions`). |
+| `GET /api/system` | Version, supported formats, whether calibre is available (`can_convert`), what converts without it (`native_conversions`) and the formats that are only kept (`kept_formats`). |
 | `GET /api/settings`, `PUT /api/settings` | `mega_folder` and `kindle_path`. |
 | `GET /api/books?q=&sort=&order=` | List and search. `sort` is `title`, `author`, `published`, `publisher`, `language`, `added` or `updated`, with `order=desc` to reverse it; books without the property come last either way. Narrow with `tag` (a category, which also matches the categories below it), `language` (`en` also matches `en-US`) and `format`, each of which may be repeated to accept any of several values, with `untagged=true` to let in books without tags and with `author`. |
 | `POST /api/books` | Multipart upload; one book per file. |
@@ -492,13 +522,14 @@ main.go              wiring and configuration
 internal/home        list of libraries, checks on a typed folder path
 internal/api         HTTP handlers, background jobs, switching libraries
 internal/library     author folders on disk, rescan, adoption of loose files
-internal/meta        EPUB, MOBI and PDF metadata parsers
+internal/meta        EPUB, MOBI, PDF, DOCX and Pages metadata parsers
 internal/store       SQLite index, settings, job history
 internal/convert     picks the built in converter or calibre
 internal/azw3        EPUB to AZW3 converter and back
 internal/kf8         KF8 (AZW3) file writer and reader
 internal/epub        EPUB writer
 internal/reflow      PDF to EPUB converter
+internal/docx        DOCX to EPUB converter
 internal/pdf         PDF reader
 internal/preview     EPUB reading order, contents and files for the reader
 internal/device      Kindle storage

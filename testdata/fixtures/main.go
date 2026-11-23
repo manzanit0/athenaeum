@@ -29,6 +29,12 @@ func main() {
 			Title: "The Tidewater Almanac", Author: "Ines Marlow", Language: "en",
 			Chapters: []string{"Spring Tides", "Neap Tides", "Storm Surge"},
 		}),
+		"logbook.docx": booktest.DOCX(booktest.Book{
+			Title: "The Harbour Logbook", Author: "Edda Voss", Language: "en",
+			Description: "A season of arrivals and departures.", Tags: []string{"Harbours"},
+			Chapters: []string{"Spring Tides", "Neap Tides", "Storm Surge"},
+		}),
+		"Shore Sketches - Edda Voss.pages": booktest.Pages(booktest.Book{Title: "Shore Sketches"}),
 		"tide-tables.pdf": booktest.TextPDF(booktest.Book{
 			Title: "Tide Tables", Author: "Ines Marlow",
 			Chapters: []string{"Spring Tides", "Neap Tides", "Storm Surge"},

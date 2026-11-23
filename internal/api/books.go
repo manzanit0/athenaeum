@@ -322,14 +322,22 @@ func (s *Server) conversionSource(book *store.Book, from, to string) (store.Form
 			return store.Format{}, fmt.Errorf("%w: the book has no %s file", errBadRequest, from)
 		case source.Format == to:
 			return store.Format{}, fmt.Errorf("%w: source and target formats are the same", errBadRequest)
+		case convert.Kept(source.Format):
+			return store.Format{}, convert.KeptError(source.Format)
 		case !s.Tools.Supports(source.Format, to):
 			return store.Format{}, errNeedsCalibre(source.Format, to)
 		}
 		return source, nil
 	}
-	candidates := slices.DeleteFunc(slices.Clone(book.Formats), func(f store.Format) bool {
+	others := slices.DeleteFunc(slices.Clone(book.Formats), func(f store.Format) bool {
 		return f.Format == to
 	})
+	candidates := slices.DeleteFunc(slices.Clone(others), func(f store.Format) bool {
+		return convert.Kept(f.Format)
+	})
+	if len(candidates) == 0 && len(others) > 0 {
+		return store.Format{}, convert.KeptError(others[0].Format)
+	}
 	if len(candidates) == 0 {
 		return store.Format{}, fmt.Errorf("%w: the book has no other format to convert from", errBadRequest)
 	}

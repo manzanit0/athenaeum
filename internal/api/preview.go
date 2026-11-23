@@ -55,12 +55,15 @@ type previewDocument struct {
 // previewRank orders the formats of a book by how well they preview:
 // EPUB first, then the formats the built in converters turn into EPUB,
 // then those calibre can, then the ones the browser shows itself.
-// Without calibre those come before the rest.
+// Without calibre those come before the rest. The formats that are
+// only kept come last, since nothing shows them.
 func (s *Server) previewRank(format string) int {
 	_, native := nativePreviews[format]
 	switch {
 	case format == "epub":
 		return 0
+	case convert.Kept(format):
+		return 1000
 	case !native && convert.ReadsNatively(format):
 		return 10
 	case native && s.Tools.CanConvert():
@@ -154,6 +157,10 @@ func (s *Server) getPreview(w http.ResponseWriter, r *http.Request) {
 // preparePreview answers with the job converting source, a file of book,
 // into the EPUB at target, starting it unless it is already running.
 func (s *Server) preparePreview(w http.ResponseWriter, book *store.Book, source store.Format, target string) {
+	if convert.Kept(source.Format) {
+		fail(w, convert.KeptError(source.Format))
+		return
+	}
 	if !s.Tools.CanRead(source.Format) {
 		fail(w, fmt.Errorf("%w: previewing %s files needs ebook-convert",
 			convert.ErrUnavailable, strings.ToUpper(source.Format)))

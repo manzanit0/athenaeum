@@ -243,6 +243,7 @@ var errorStatuses = []struct {
 	{errUnreadable, http.StatusUnprocessableEntity},
 	{preview.ErrNotFound, http.StatusNotFound},
 	{convert.ErrUnavailable, http.StatusServiceUnavailable},
+	{convert.ErrKept, http.StatusUnprocessableEntity},
 	{device.ErrNotConnected, http.StatusConflict},
 	{device.ErrInvalidPath, http.StatusBadRequest},
 	{megasync.ErrNotConfigured, http.StatusBadRequest},
@@ -320,6 +321,9 @@ type systemInfo struct {
 	NativeConversions map[string][]string `json:"native_conversions"`
 	// CanEmbed reports whether metadata can be written into files.
 	CanEmbed bool `json:"can_embed"`
+	// KeptFormats lists the formats the library only keeps: books in
+	// them cannot be read, converted or sent to the e-reader.
+	KeptFormats []string `json:"kept_formats"`
 }
 
 // system reports the capabilities of the running server.
@@ -333,6 +337,7 @@ func (s *Server) system(w http.ResponseWriter, _ *http.Request) {
 
 		NativeConversions: convert.NativeTargets(),
 		CanEmbed:          s.Tools.CanEmbed(),
+		KeptFormats:       convert.KeptFormats(),
 	})
 }
 

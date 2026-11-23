@@ -20,7 +20,7 @@ import {
 import { ShelfTable } from "../ShelfTable";
 import { Shelves } from "../Shelves";
 import { SortMenu } from "../SortMenu";
-import { useSystem } from "../system";
+import { usable, useSystem } from "../system";
 import { Button, buttonClass, Empty, Problem } from "../ui";
 
 /** The query parameter that says the reader came to choose books for the Kindle. */
@@ -184,7 +184,7 @@ function LayoutIcon({ layout }: { layout: Layout }) {
 function sentNote(sent: Book[], already: number, empty: number): string {
   const left = [
     ...(already > 0 ? [`skipped ${already} already on it`] : []),
-    ...(empty > 0 ? [`${empty} with no file`] : []),
+    ...(empty > 0 ? [`${empty} with no file that can be sent`] : []),
   ];
   if (sent.length === 0) {
     return `Nothing was sent to the Kindle: ${left.join(", ")}`;
@@ -305,7 +305,7 @@ export function LibraryPage() {
     setBusy(true);
     await attempt(async () => {
       const there = new Set((await api.deviceBooks()).map((book) => book.book_id));
-      const filed = chosen.filter((book) => book.formats.length > 0);
+      const filed = chosen.filter((book) => usable(book, system));
       const ready = filed.filter((book) => !there.has(book.id));
       const note = sentNote(ready, filed.length - ready.length, chosen.length - filed.length);
       if (ready.length === 0) {

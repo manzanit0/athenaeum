@@ -1,7 +1,7 @@
 // Package convert transforms ebooks between formats and embeds metadata.
-// EPUB to AZW3 and PDF to EPUB or AZW3 are done by the converters built
-// into the application; everything else drives the calibre command line
-// tools.
+// EPUB to AZW3 and back, and PDF and Word documents to EPUB or AZW3,
+// are done by the converters built into the application; everything
+// else drives the calibre command line tools.
 package convert
 
 import (

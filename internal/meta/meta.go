@@ -47,7 +47,7 @@ const maxCoverBytes = 20 << 20
 // importFormats lists the file extensions accepted into the library.
 var importFormats = []string{
 	"azw", "azw3", "azw4", "cbr", "cbz", "djvu", "docx", "epub", "fb2",
-	"htmlz", "kepub", "kfx", "lit", "mobi", "odt", "pdf", "prc", "rtf", "txt",
+	"htmlz", "kepub", "kfx", "lit", "mobi", "odt", "pages", "pdf", "prc", "rtf", "txt",
 }
 
 // ImportFormats returns the file extensions accepted into the library.
@@ -76,6 +76,10 @@ func Read(path, name string) (Metadata, *Cover) {
 		m, cover, err = readMOBI(path, true)
 	case "pdf":
 		m, err = readPDF(path)
+	case "docx":
+		m, cover, err = readDOCX(path)
+	case "pages":
+		m, cover, err = readPages(path)
 	}
 	if err != nil {
 		m, cover = Metadata{}, nil
@@ -94,6 +98,32 @@ func ReadHeader(path, name string) Metadata {
 		}
 	}
 	return fillFromName(clean(m), name)
+}
+
+// Fill returns m with every field it leaves empty taken from fallback.
+func Fill(m, fallback Metadata) Metadata {
+	pick := func(wanted, other string) string {
+		if wanted != "" {
+			return wanted
+		}
+		return other
+	}
+	m.Title = pick(m.Title, fallback.Title)
+	m.Publisher = pick(m.Publisher, fallback.Publisher)
+	m.Description = pick(m.Description, fallback.Description)
+	m.ISBN = pick(m.ISBN, fallback.ISBN)
+	m.Published = pick(m.Published, fallback.Published)
+	m.Language = pick(m.Language, fallback.Language)
+	if len(m.Authors) == 0 {
+		m.Authors = fallback.Authors
+	}
+	if len(m.Tags) == 0 {
+		m.Tags = fallback.Tags
+	}
+	if m.Series == "" {
+		m.Series, m.SeriesIndex = fallback.Series, fallback.SeriesIndex
+	}
+	return m
 }
 
 // isMOBI reports whether format is stored in a MOBI container.
