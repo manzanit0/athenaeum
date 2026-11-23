@@ -1,9 +1,13 @@
-name: Release macOS app
+name: Release
 
-# Every push to the default branch builds Athenaeum.app and publishes it
-# as a GitHub release. The steps mirror `task macos:app`, except that both
-# binaries are built for Apple silicon and Intel and joined into one
-# universal app.
+# Every push to the default branch publishes a GitHub release holding:
+#
+# - Athenaeum.app, the macOS app. The steps mirror `task macos:app`,
+#   except that both binaries are built for Apple silicon and Intel and
+#   joined into one universal app.
+# - The server on its own, for each platform in the "Build the server
+#   archives" step. Their names carry no version, so install.sh can
+#   fetch them from releases/latest/download/.
 
 on:
   push:
@@ -13,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-macos
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -22,6 +26,8 @@ jobs:
     env:
       APP: bin/Athenaeum.app
       MIN_MACOS: "13.0" # keep in step with LSMinimumSystemVersion
+      # The server is pure Go, so one runner cross-compiles every target.
+      CGO_ENABLED: "0"
     steps:
       - uses: actions/checkout@v5
 
@@ -33,20 +39,30 @@ jobs:
         id: version
         run: |
           short=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' macos/Info.plist)
+          tag="v$short-build.$GITHUB_RUN_NUMBER"
           echo "short=$short" >> "$GITHUB_OUTPUT"
-          echo "tag=v$short-build.$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "LDFLAGS=-s -w -X main.version=$tag" >> "$GITHUB_ENV"
+          mkdir -p build dist
 
-      - name: Build the server
+      - name: Build the server archives
         # web/dist is committed, so the interface is embedded as is.
-        env:
-          CGO_ENABLED: "0"
-          GOOS: darwin
+        # install.sh picks one of these by name; keep the two in step.
         run: |
-          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" build
-          GOARCH=arm64 go build -trimpath -o build/server-arm64 .
-          GOARCH=amd64 go build -trimpath -o build/server-x86_64 .
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os=${target%/*} arch=${target#*/}
+            out="build/athenaeum-$os-$arch"
+            mkdir -p "$out"
+            GOOS=$os GOARCH=$arch go build -trimpath -ldflags "$LDFLAGS" -o "$out/athenaeum" .
+            # Without the macOS attributes, which GNU tar warns about.
+            tar --no-xattrs --no-mac-metadata -czf "dist/athenaeum-$os-$arch.tar.gz" -C "$out" athenaeum
+          done
+
+      - name: Build the app's server
+        run: |
+          mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
           lipo -create -output "$APP/Contents/MacOS/athenaeum-server" \
-            build/server-arm64 build/server-x86_64
+            build/athenaeum-darwin-arm64/athenaeum build/athenaeum-darwin-amd64/athenaeum
 
       - name: Build the app shell
         run: |
@@ -73,15 +89,21 @@ jobs:
 
       - name: Zip the app
         # ditto keeps the signature and extended attributes intact.
-        run: ditto -c -k --keepParent "$APP" "Athenaeum-${{ steps.version.outputs.tag }}-macos-universal.zip"
+        run: ditto -c -k --keepParent "$APP" "dist/Athenaeum-${{ steps.version.outputs.tag }}-macos-universal.zip"
+
+      - name: Write the checksums
+        working-directory: dist
+        run: |
+          shasum -a 256 * > ../checksums.txt
+          mv ../checksums.txt .
+          cat checksums.txt
 
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$TAG" \
-            "Athenaeum-$TAG-macos-universal.zip" \
+          gh release create "$TAG" dist/* \
             --target "$GITHUB_SHA" \
             --title "Athenaeum ${{ steps.version.outputs.short }} (build $GITHUB_RUN_NUMBER)" \
             --generate-notes

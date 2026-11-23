@@ -75,6 +75,21 @@ changes nothing until you confirm.
 ## Get started
 
 ```sh
+curl -fsSL https://raw.githubusercontent.com/manzanit0/athenaeum/master/install.sh | sh
+athenaeum             # http://localhost:8080, first library in ./data
+```
+
+That installs the server from the latest
+[release](https://github.com/manzanit0/athenaeum/releases), which has
+builds for Linux and macOS on amd64 and arm64. The script checks the
+download against the release's checksums and puts `athenaeum` in
+`/usr/local/bin` when it is writable, otherwise in `~/.local/bin`;
+`ATHENAEUM_INSTALL_DIR` picks another folder and `ATHENAEUM_VERSION`
+another release.
+
+or from a checkout:
+
+```sh
 go run ./...          # http://localhost:8080, first library in ./data
 ```
 
@@ -94,6 +109,10 @@ or as a macOS app, in a window of its own instead of a browser tab:
 task macos:app        # builds bin/Athenaeum.app
 open bin/Athenaeum.app
 ```
+
+Each release also carries the app already built, for Apple silicon and
+Intel. It is not notarized, so macOS asks for it to be allowed under
+Privacy & Security the first time it is opened.
 
 The app starts with a library in
 `~/Library/Application Support/Athenaeum`; see [macOS app](#macos-app).
@@ -538,4 +557,6 @@ internal/vault       secrets encrypted in the database
 web/                 React, TypeScript and Tailwind interface
 macos/               Swift shell, Info.plist and icon of the macOS app
 e2e/                 Playwright tests
+install.sh           installs the server from the latest release
+.github/workflows    builds and publishes a release on every push to master
 ```
