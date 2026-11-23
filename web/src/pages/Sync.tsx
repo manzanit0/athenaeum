@@ -133,8 +133,28 @@ function LastRun({ job, onApply }: { job: Job; onApply?: (report: SyncReport) =>
           summary={report.library}
           planned={planned}
           transfer={transfer(report.pull, "to download", "downloaded")}
-          removalNote="What is removed from this library is deleted for good."
+          removalNote={
+            report.direction === "both"
+              ? "What is removed from this library is kept in its trash folder."
+              : "What is removed from this library is deleted for good."
+          }
         />
+      )}
+      {report?.conflicts && report.conflicts.length > 0 && (
+        <div className="mt-4 border-t border-rule pt-4">
+          <p>
+            {count(report.conflicts.length, "file")} changed both here and on MEGA since the last sync. The newer
+            version {planned ? "stays" : "was kept"}; the other {planned ? "goes" : "went"} to the trash folder or to
+            MEGA's Rubbish Bin.
+          </p>
+          <ul className="mt-1 text-[0.9rem] text-soft">
+            {report.conflicts.map((c) => (
+              <li key={c.path} className="truncate">
+                {c.path}: {c.kept === "library" ? "this library's version" : "MEGA's version"}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
       {report && described && planned && !settled && onApply && (
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-rule pt-4">
@@ -435,7 +455,8 @@ export function SyncPage() {
                   <span>
                     Also delete what the other side no longer has
                     <span className="block text-[0.9rem] text-soft">
-                      Deletions on MEGA go to its Rubbish Bin. Deletions in this library are permanent.
+                      Deletions on MEGA go to its Rubbish Bin. A sync keeps what it removes from this library in the
+                      library's trash folder; a download with the delete option deletes for good.
                     </span>
                   </span>
                 </label>

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/manzanit0/athenaeum/internal/library"
@@ -75,6 +74,9 @@ type Report struct {
 	// Library describes, book by book, what the run changes in the
 	// library.
 	Library *Summary `json:"library,omitempty"`
+	// Conflicts lists the files a sync both ways found changed on both
+	// sides, and whose version stays.
+	Conflicts []Conflict `json:"conflicts,omitempty"`
 }
 
 // previewReads is the most details files a preview reads from MEGA to
@@ -144,12 +146,18 @@ type Syncer struct {
 	Store *store.Store
 	// Library is the library being synced.
 	Library *library.Library
+	// Trash is the folder that takes the library files a sync both ways
+	// removes or replaces. Left empty, it is the folder "trash" next to
+	// the library folder.
+	Trash string
 	// mu allows a single sync at a time.
 	mu sync.Mutex
 }
 
 // Run synchronises the library with the MEGA folder according to opts,
-// telling report, which may be nil, how far it has come.
+// telling report, which may be nil, how far it has come. A sync both
+// ways merges the two sides against what the last syncs recorded; an
+// upload or a download on its own makes one side follow the other.
 func (s *Syncer) Run(ctx context.Context, folder string, opts Options, report func(Progress)) (*Report, error) {
 	if report == nil {
 		report = func(Progress) {}
@@ -171,20 +179,21 @@ func (s *Syncer) Run(ctx context.Context, folder string, opts Options, report fu
 	if err != nil {
 		return out, err
 	}
-	if opts.Direction != Pull {
-		if err := s.push(drive, out, report); err != nil {
-			return out, err
-		}
-	}
-	if err := ctx.Err(); err != nil {
+	if err := s.rescope(folder); err != nil {
 		return out, err
 	}
-	if opts.Direction != Push {
-		if err := s.pull(ctx, drive, out, report); err != nil {
-			return out, err
-		}
+	switch opts.Direction {
+	case Both:
+		return out, s.merge(ctx, drive, out, report)
+	case Push:
+		err = s.push(drive, out, report)
+	default:
+		err = s.pull(ctx, drive, out, report)
 	}
-	return out, nil
+	if err != nil || opts.DryRun {
+		return out, err
+	}
+	return out, s.agree(drive, folder)
 }
 
 // catalog returns what the library knows about its books and about the
@@ -259,11 +268,6 @@ func (s *Syncer) push(drive Drive, report *Report, progress func(Progress)) erro
 // replaced by what MEGA holds.
 func (s *Syncer) pull(ctx context.Context, drive Drive, report *Report, progress func(Progress)) error {
 	progress(Progress{Phase: PhasePreparing})
-	if report.Direction == Both && report.DryRun && !drive.Exists(report.Folder) {
-		report.Pull = &Result{Actions: []Action{}, DryRun: true}
-		report.Library = &Summary{Books: []Change{}, Other: []FileChange{}}
-		return nil
-	}
 	known, err := s.catalog()
 	if err != nil {
 		return err
@@ -420,13 +424,8 @@ func (s *Syncer) stamp(drive Drive, folder string) error {
 	if err != nil {
 		return fmt.Errorf("listing MEGA files: %w", err)
 	}
-	prefix := Absolute(folder) + "/"
 	for _, e := range entries {
-		rel, ok := strings.CutPrefix("/"+strings.TrimLeft(e.Path, "/"), prefix)
-		if !ok {
-			continue
-		}
-		local := filepath.Join(s.Library.Root(), filepath.FromSlash(rel))
+		local := filepath.Join(s.Library.Root(), filepath.FromSlash(e.Rel))
 		info, err := os.Stat(local)
 		if err != nil || info.Size() != e.Size || info.ModTime().After(e.Modified) {
 			continue

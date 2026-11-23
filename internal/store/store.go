@@ -65,6 +65,13 @@ CREATE TABLE IF NOT EXISTS tombstones (
 	title TEXT NOT NULL DEFAULT '',
 	authors TEXT NOT NULL DEFAULT '[]'
 );
+CREATE TABLE IF NOT EXISTS sync_state (
+	path TEXT PRIMARY KEY,
+	local_size INTEGER NOT NULL,
+	local_mtime INTEGER NOT NULL,
+	remote_size INTEGER NOT NULL,
+	remote_version TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS secrets (
 	name TEXT PRIMARY KEY,
 	value BLOB NOT NULL

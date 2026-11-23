@@ -231,6 +231,15 @@ export interface SyncReport {
   rescan?: { added: number; updated: number; removed: number };
   mega?: SyncSummary;
   library?: SyncSummary;
+  /** The files a sync both ways found changed on both sides. */
+  conflicts?: SyncConflict[];
+}
+
+/** A file changed on both sides since they last matched. */
+export interface SyncConflict {
+  path: string;
+  /** The side whose version stays. */
+  kept: "library" | "mega";
 }
 
 /** The direction of a sync run. */
