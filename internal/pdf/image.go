@@ -315,3 +315,24 @@ func (im *Image) build(samples []byte, space colorSpace) image.Image {
 	}
 	return img
 }
+
+// Encodable reports whether Encode is likely to succeed, judging by how
+// the image is stored and without decoding it: it is false for stencil
+// masks, images of unusable sizes and images kept in the JPEG 2000,
+// fax and JBIG2 encodings.
+func (im *Image) Encodable() bool {
+	d := im.stream.doc
+	if im.Width <= 0 || im.Height <= 0 || im.Width*im.Height > maxPixels {
+		return false
+	}
+	if mask, _ := d.resolve(im.stream.Dict["ImageMask"]).(bool); mask {
+		return false
+	}
+	names, _ := im.stream.filters()
+	for _, name := range names {
+		if imageFilters[name] {
+			return name == "DCTDecode" || name == "DCT"
+		}
+	}
+	return true
+}

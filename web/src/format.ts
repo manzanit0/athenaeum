@@ -60,6 +60,11 @@ export function count(n: number, noun: string): string {
   return `${n} ${noun}${n === 1 ? "" : "s"}`;
 }
 
+/** Writes an amount of dollars, such as "$4.20". */
+export function dollars(amount: number): string {
+  return `$${amount.toFixed(2)}`;
+}
+
 /** Writes what the server gave as a reason as a sentence: capital first, full stop last. */
 export function sentence(text: string): string {
   return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}.` : "";

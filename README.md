@@ -44,6 +44,11 @@ convert between them there. EPUB to AZW3 and back, and PDF and Word
 documents to EPUB or AZW3, are built in; with calibre installed, many
 more.
 
+A PDF that conversion cannot do justice to, such as a scan, can be
+restored instead: a language model reads its pages into text, and the
+book gets an EPUB with a table of contents, linked notes and headings
+in one style. See [Restoring](#restoring).
+
 ![A book being edited: its details, categories and files, with the conversion below](docs/screenshots/book.png)
 
 ### Opens books in the browser
@@ -138,6 +143,7 @@ Everything is set through environment variables.
 | `ATHENAEUM_EBOOK_CONVERT` | `ebook-convert` | calibre's converter. |
 | `ATHENAEUM_EBOOK_META` | `ebook-meta` | calibre's metadata tool. |
 | `ATHENAEUM_CONVERTER` | `native` | `calibre` hands calibre the conversions the built in converters would do, when it is installed. |
+| `ANTHROPIC_API_KEY` | none | Key books are restored with, until one is entered in the interface. |
 | `ATHENAEUM_STOP_ON_STDIN_CLOSE` | off | `1` stops the server once its standard input closes. The macOS app sets it so the server never outlives the app. |
 
 ## How it works
@@ -340,6 +346,69 @@ wrote, kept in `internal/azw3/testdata`. The format references were the
 [MobileRead wiki](https://wiki.mobileread.com/wiki/KF8), calibre's
 source and [leotaku/mobi](https://github.com/leotaku/mobi).
 
+### Restoring
+
+"Restore…" among a book's file actions, and the message of a
+conversion that failed on scanned pages, lead to the restore page of
+the book. It says how many pages would be sent, what that is expected
+to cost and at what cost the restore is stopped, and asks once for an
+Anthropic API key, which is kept encrypted with the library. The PDF
+is never changed. The result is the book's EPUB; a book that has one
+already is told that it will be replaced before the restore starts.
+
+A restore runs from start to end without anyone taking part:
+
+1. The pages are sorted, without the model, into scans, pages with
+   text, blank pages and scans stored in a way that cannot be shown
+   (JPEG 2000, fax and JBIG2 encodings). A PDF with more than a fifth
+   of the last kind is turned down before anything is spent.
+2. The model reads the first 10 pages and saves a transcription of
+   each. It then says whether it expects to restore the rest well.
+   When it does not, the restore ends there with its reason, and
+   nothing is added to the book.
+3. The rest is read 10 pages to a session, three sessions at a time.
+   A page not saved is asked for once more; one still missing fails
+   the restore.
+4. The model is shown the book as a whole: its headings, each with
+   how the text under it begins and how long that text is, the lines
+   of its title page and the stretches of words set in capitals. It
+   gives the headings the levels the structure asks for, turning a
+   line that is no real division of the text, such as a salutation
+   set large, back into ordinary text, and gives everything the
+   capitals grammar asks for rather than those the printer chose. A
+   change to the words themselves is turned down; an accent that
+   capitals left out may come back.
+5. The pages are put together, paragraphs that run across pages are
+   joined, note references are linked to their notes, the table of
+   contents is built from the headings and the EPUB is written. It
+   opens with a title page laid out as publishers do: the title in
+   capitals, then the subtitle, the authors, lines about them and the
+   making of the book, the epigraph, and the publisher, place and year
+   at the foot. It is made from what the model marked as such in the
+   opening pages, or from the details of the book when it prints none.
+   Text ahead of the first chapter is listed in the contents under
+   the title of the book. The book is set in Ibarra Real Nova, a
+   revival of the type of the Quijote of 1780, and carries its
+   regular, italic, bold and bold italic fonts (about 300 KB) with
+   their licence, the SIL Open Font License; a reader set to its own
+   typeface still uses that one. The fonts are kept in
+   `internal/restore/fonts`.
+
+A page with text reaches the model as lines with what its looks say
+written out: bold and italic stretches marked, lines set larger than
+the text of the book noted with their size, and an empty line where
+the page leaves a gap. The model keeps the emphasis, gives list items
+the level they are nested at, and is told to give every piece of text
+the kind that says what it is rather than copy how the page looks.
+
+The model is only used where reading and judgement are needed: steps
+2 to 4. It works through tools (`read_pages`, `save_page`,
+`judge_sample`, `set_headings`, `set_capitals`) that hand it page pictures or text
+and check what it hands back; it never opens or writes a file. The
+sessions run on the Go packages of
+[docker-agent](https://github.com/docker/docker-agent). Passages the
+model could not read with certainty are listed with the outcome.
+
 ### Reading
 
 Click the cover on a book's page to read it in the browser. EPUB opens section
@@ -493,6 +562,9 @@ answers `503` with `"code": "no_library"` when none is open.
 | `POST /api/books/{id}/formats` | Multipart upload of an additional format. |
 | `GET`, `DELETE /api/books/{id}/formats/{format}` | Download or remove one file. |
 | `POST /api/books/{id}/convert` | `{"to": "azw3", "from": "epub"}`; `from` is optional. Returns a job whose result holds the `book`, the `engine` used (`native` or `calibre`) and `warnings` listing what was left out. |
+| `GET /api/books/{id}/restore` | What restoring the book would involve: whether it is `possible` (with the `reason` when not), whether a key is `configured`, the `pages` by kind (`scans`, `text`, `blank`, `unreadable`), the expected cost in dollars (`cost_low`, `cost_high`), the `limit` at which it is stopped and whether it `replaces` an EPUB. |
+| `POST /api/books/{id}/restore` | `{"replace": false}`; restores the PDF into an EPUB. `replace` must be set when the book has an EPUB. `409` without a key. Returns a job that reports its `stage`, the pages `read` and the `cost` so far while it runs, and whose result holds the `book`, what was done and the `doubts`. |
+| `GET /api/restore`, `PUT /api/restore/key`, `DELETE /api/restore/key` | Whether a key is `configured` and the `model` used; `PUT` takes `{"key": "..."}`. |
 | `GET /api/books/{id}/preview?format=` | How to show the book: `kind` (`epub`, `pdf` or `text`), the `base` address of its content and, for EPUB, the `sections` in reading order and the `contents`. `format` is optional. Answers `202` with a job when the book must be converted first; ask again when the job is done. |
 | `GET /api/books/{id}/preview/{format}/{path}` | The content: the PDF or TXT file itself, or the file at `path` inside the EPUB. Section and contents `href`s are relative to `base`. |
 | `GET /api/books/facets` | Takes the parameters of `GET /api/books` and counts what the listing can be narrowed by: `tags`, `languages` and `formats`, each an alphabetical list of every `value` in the library with its `count`, plus `untagged`, `matching` and the `total` of the library. The counts of one kind leave the narrowing by that kind out. A category with others below it is listed with the count of all the books below it. |
@@ -550,6 +622,7 @@ internal/kf8         KF8 (AZW3) file writer and reader
 internal/epub        EPUB writer
 internal/reflow      PDF to EPUB converter
 internal/docx        DOCX to EPUB converter
+internal/restore     PDF to EPUB with a language model: page tools, sessions, book writer
 internal/pdf         PDF reader
 internal/preview     EPUB reading order, contents and files for the reader
 internal/device      Kindle storage

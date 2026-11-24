@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Restore mockups</title>
+<style>
+  :root { --paper:#e9ece7; --sheet:#f6f7f4; --ink:#1b211e; --soft:#58625c; --rule:#c8cec6; --ribbon:#8c1429; --leaf:#2c6646; --warn:#f3e3b8; --warn-ink:#6b4a05; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.5 system-ui,-apple-system,sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:32px 16px 64px; }
+  h1 { font:500 30px Georgia,serif; margin:0 0 4px; }
+  h2 { font:500 21px Georgia,serif; margin:48px 0 4px; }
+  h3 { font:500 17px Georgia,serif; margin:0; }
+  .lead, .soft { color:var(--soft); }
+  .small { font-size:13px; }
+  .frame { background:var(--sheet); border:1px solid var(--rule); border-radius:3px; padding:20px; margin-top:14px; }
+  .panel { border:1px solid var(--ink); border-radius:3px; padding:18px; background:var(--sheet); }
+  .row { display:flex; gap:16px; align-items:center; padding:10px 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .btn { display:inline-block; border:1px solid var(--ink); border-radius:3px; padding:7px 13px; font-weight:500; background:transparent; }
+  .btn.primary { background:var(--ink); color:var(--sheet); }
+  .btn.danger { border-color:var(--ribbon); color:var(--ribbon); }
+  .btn.quiet { border-color:transparent; text-decoration:underline; text-underline-offset:4px; }
+  .select { border:1px solid var(--rule); border-radius:3px; padding:7px 28px 7px 12px; background:var(--sheet); }
+  .opt { display:flex; gap:10px; margin-bottom:10px; }
+  .box { width:16px; height:16px; border:1px solid var(--ink); border-radius:2px; background:var(--ink); color:var(--sheet); font-size:12px; line-height:14px; text-align:center; flex:none; margin-top:3px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(125px,1fr)); gap:10px; margin:14px 0; }
+  .stat { background:var(--paper); border-radius:3px; padding:10px 12px; }
+  .stat b { display:block; font:500 22px Georgia,serif; }
+  .stat.warn { background:var(--warn); color:var(--warn-ink); }
+  .stage { display:flex; gap:10px; padding:7px 0; }
+  .dot { width:14px; height:14px; border:1.5px solid var(--soft); border-radius:50%; flex:none; margin-top:4px; }
+  .dot.on { border-color:var(--leaf); background:var(--leaf); }
+  .bar { height:6px; background:var(--paper); border-radius:3px; margin:0 0 6px 24px; }
+  .bar i { display:block; width:45%; height:6px; background:var(--leaf); border-radius:3px; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; }
+  .scan { background:var(--paper); border-radius:3px; padding:16px; height:150px; display:flex; flex-direction:column; gap:10px; justify-content:center; }
+  .scan i { display:block; height:7px; background:var(--rule); border-radius:3px; }
+  .scan i.doubt { outline:2px solid #b8860b; outline-offset:3px; }
+  .text { font:16px/1.6 Georgia,serif; }
+  mark { background:var(--warn); padding:0 2px; }
+  .change { display:grid; grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr) 60px; gap:8px; padding:8px 0; border-bottom:1px solid var(--rule); }
+  @media (max-width:520px) { .two { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Restore: mockups</h1>
+  <p class="lead">Five screens for the proposed agentic conversion. Costs, times and counts are placeholders.</p>
+
+  <h2>1. Where it starts</h2>
+  <p class="soft">No button of its own. While editing, a plain link sits at the end of the Files actions. Where the need shows up, such as a conversion that fails on scanned pages, the message offers it.</p>
+  <div class="frame">
+    <h3>Files</h3>
+    <div class="row" style="margin-top:10px"><b style="width:44px">PDF</b><span class="soft" style="flex:1">The Packet Boat - Hugh Carrow.pdf</span><span class="soft">48 MB</span><u>Download</u></div>
+    <div class="btns" style="margin:14px 0 0"><span class="select">EPUB</span><span class="btn">Convert</span><span class="btn">Add a file</span><span class="btn quiet">Restore…</span></div>
+    <p style="border-left:4px solid var(--ribbon);padding:10px 14px;margin:16px 0 0;background:var(--paper)">This PDF could not be converted: its pages are scans. <u>Restore it into text</u></p>
+  </div>
+
+  <h2>2. The restore page</h2>
+  <p class="soft">A page of its own at /books/12/restore, so the book page stays as it is.</p>
+  <div class="frame">
+    <div class="panel">
+      <h3>Restore this book</h3>
+      <p class="soft" style="margin:4px 0 14px">318 pages, all of them scans. No table of contents.</p>
+      <div class="opt"><span class="box">✓</span><span>Read the scanned pages into text<br><span class="soft small">318 pages. Needed before anything else can be done.</span></span></div>
+      <div class="opt"><span class="box">✓</span><span>Build the contents and link notes and references<br><span class="soft small">Chapters, footnotes, bibliography and index entries.</span></span></div>
+      <div class="opt"><span class="box">✓</span><span>Standardise headings and capitals<br><span class="soft small">One heading style per level. The words stay as written.</span></span></div>
+      <div class="stats">
+        <div class="stat"><span class="soft small">Pages to send</span><b>318</b></div>
+        <div class="stat"><span class="soft small">Estimated cost</span><b>$4 to $8</b></div>
+        <div class="stat"><span class="soft small">Estimated time</span><b>25 min</b></div>
+      </div>
+      <p class="soft small">The pages are sent to Anthropic to be read. The PDF is kept as it is, and the result is a new EPUB you review first.</p>
+      <div class="btns"><span class="btn primary">Try 10 pages first</span><span class="btn">Restore the whole book</span><span class="btn quiet">Cancel</span></div>
+    </div>
+  </div>
+
+  <h2>3. While it runs</h2>
+  <p class="soft">Shown on the book page and in Activity. The job survives leaving the page.</p>
+  <div class="frame">
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline"><h3>Restoring “The Packet Boat”</h3><span class="soft small">About 14 minutes left · $2.10 so far</span></div>
+    <div style="margin-top:12px">
+      <div class="stage"><span class="dot on"></span><span style="flex:1">Reading the pages</span><span class="soft">142 of 318</span></div>
+      <div class="bar"><i></i></div>
+      <div class="stage soft"><span class="dot"></span>Working out the chapters and heading levels</div>
+      <div class="stage soft"><span class="dot"></span>Standardising headings and capitals</div>
+      <div class="stage soft"><span class="dot"></span>Linking notes and references</div>
+    </div>
+    <p class="soft small">You can leave this page. Activity shows the progress, and a stopped restore carries on from the last page read.</p>
+    <div class="btns"><span class="btn">Pause</span><span class="btn danger">Stop and discard</span></div>
+  </div>
+
+  <h2>4. Reviewing the result</h2>
+  <p class="soft">The job ends here. Nothing is added to the book until you say so.</p>
+  <div class="frame">
+    <h3>Review the restored book</h3>
+    <p class="soft" style="margin:4px 0 0">Nothing has been added to the book yet.</p>
+    <div class="stats">
+      <div class="stat"><span class="soft small">Pages read</span><b>318</b></div>
+      <div class="stat"><span class="soft small">Chapters found</span><b>24</b></div>
+      <div class="stat"><span class="soft small">Notes linked</span><b>212</b></div>
+      <div class="stat"><span class="soft small">Headings changed</span><b>61</b></div>
+      <div class="stat warn"><span class="small">Passages to check</span><b>14</b></div>
+    </div>
+    <div class="panel" style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><b>Passage 3 of 14 · page 47</b><span class="btns"><span class="btn">←</span><span class="btn">→</span></span></div>
+      <div class="two">
+        <div><div class="soft small" style="margin-bottom:6px">The scan</div><div class="scan"><i style="width:92%"></i><i style="width:98%"></i><i class="doubt" style="width:40%"></i><i style="width:95%"></i><i style="width:70%"></i></div></div>
+        <div><div class="soft small" style="margin-bottom:6px">The text</div><div class="text">The packet left Falmouth on the ebb, and by nightfall the <mark>Manacles</mark> lay well astern. Carrow kept the deck until the watch changed.</div></div>
+      </div>
+      <p class="soft small">The word is smudged in the scan and could not be read with certainty.</p>
+      <div class="btns"><span class="btn">Looks right</span><span class="btn">Edit the text</span></div>
+    </div>
+    <b>Headings</b>
+    <div style="border-top:1px solid var(--rule);margin-top:6px">
+      <div class="change"><span class="soft">CHAPTER THE FIRST</span><span class="soft">→</span><span>Chapter the first</span><span class="soft small">Level 1</span></div>
+      <div class="change"><span class="soft">the Falmouth Station</span><span class="soft">→</span><span>The Falmouth station</span><span class="soft small">Level 2</span></div>
+      <div class="change"><span class="soft">NOTES TO CHAPTER I</span><span class="soft">→</span><span>Notes to chapter 1</span><span class="soft small">Level 2</span></div>
+    </div>
+    <p class="soft small">And 58 more. Outside the passages above, the words are the same as in the original.</p>
+    <div class="btns"><span class="btn primary">Add to the book as EPUB</span><span class="btn">Read the whole draft</span><span class="btn danger">Discard</span></div>
+  </div>
+
+  <h2>5. Adding it to the book</h2>
+  <p class="soft">Only asked when the book already has an EPUB. Otherwise the EPUB is simply added.</p>
+  <div class="frame">
+    <div class="panel" style="max-width:460px;margin:0 auto">
+      <h3>Replace the EPUB of this book?</h3>
+      <p class="soft">The book already has an EPUB, and a book keeps one file of each format. The one it has now is kept for 30 days and can be put back from Files.</p>
+      <p class="soft small">The PDF and the AZW3 are not changed. The AZW3 was made from the old EPUB; you can convert it again afterwards.</p>
+      <div class="btns" style="justify-content:flex-end"><span class="btn">Cancel</span><span class="btn">Download the draft instead</span><span class="btn primary">Replace the EPUB</span></div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

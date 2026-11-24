@@ -299,6 +299,9 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
   );
   const [target, setTarget] = useState("");
   const chosen = targets.includes(target) ? target : (targets[0] ?? "");
+  const hasPDF = book.formats.some((file) => file.format === "pdf");
+  // Set once a conversion has failed because the pages of the PDF are pictures.
+  const [scanned, setScanned] = useState(false);
 
   const convert = () =>
     attempt(async () => {
@@ -309,7 +312,10 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
           const note = left > 0 ? `, with ${count(left, "thing")} left out. Activity has the list` : "";
           return `Converted to ${chosen.toUpperCase()}${note}`;
         },
-        onDone: () => onChanged(),
+        onDone: (finished) => {
+          setScanned(finished.status === "failed" && finished.error.includes("look like scans"));
+          onChanged();
+        },
       });
     });
   const remove = (format: string) =>
@@ -386,7 +392,25 @@ function Files({ book, editing, onChanged }: { book: Book; editing: boolean; onC
                 }}
               />
             </label>
+            {hasPDF && (
+              <Link
+                to={`/books/${book.id}/restore`}
+                className="py-2 font-medium underline underline-offset-4 hover:text-ribbon-deep"
+              >
+                Restore…
+              </Link>
+            )}
           </div>
+          {scanned && (
+            <div className="mt-4">
+              <Problem>
+                This PDF could not be converted: its pages are scans.{" "}
+                <Link to={`/books/${book.id}/restore`} className="font-medium underline underline-offset-4">
+                  Restore it into text
+                </Link>
+              </Problem>
+            </div>
+          )}
           {!system.can_convert && system.version && (
             <p className="mt-3 max-w-[62ch] text-[0.9rem] text-soft">
               EPUB and AZW3 convert to each other, and PDF and Word documents to EPUB or AZW3, without anything

@@ -14,6 +14,9 @@ export const megaDrive = path.join(work, "mega");
 /** The file whose content, such as "150ms", slows every change of the fake mega-cli down. */
 export const megaDelay = path.join(work, "mega-delay");
 
+/** The file whose content is why the stand-in for the language model declines to restore a book. */
+export const modelDecline = path.join(work, "model-decline");
+
 /** The accounts the stand-in for MEGA knows, as defined in internal/megasync/megatest. */
 export const mega = {
   email: "reader@example.com",

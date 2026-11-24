@@ -57,6 +57,9 @@ type config struct {
 	// converter is "native" to use the built in converters where they
 	// apply, or "calibre" to prefer calibre whenever it is installed.
 	converter string
+	// modelKey is the Anthropic API key books are restored with until
+	// one is given in the interface.
+	modelKey string
 	// stopOnStdinClose stops the server once its standard input closes,
 	// so a program that starts it, such as the macOS app, takes it down
 	// when it exits, however it exits.
@@ -83,6 +86,7 @@ func loadConfig() config {
 		ebookConvert: env("ATHENAEUM_EBOOK_CONVERT", "ebook-convert"),
 		ebookMeta:    env("ATHENAEUM_EBOOK_META", "ebook-meta"),
 		converter:    env("ATHENAEUM_CONVERTER", "native"),
+		modelKey:     env("ANTHROPIC_API_KEY", ""),
 
 		stopOnStdinClose: env("ATHENAEUM_STOP_ON_STDIN_CLOSE", "") == "1",
 	}
@@ -168,6 +172,9 @@ func (cfg config) newServer(dir string, st *store.Store) (*api.Server, error) {
 		Tools:    tools,
 		Syncer:   &megasync.Syncer{Accounts: accounts, Store: st, Library: lib},
 		Previews: &preview.Cache{Dir: filepath.Join(dir, "cache", "preview")},
+		Secrets:  secrets,
+		Model:    restoreModel(),
+		ModelKey: cfg.modelKey,
 		Defaults: map[string]string{
 			api.SettingMegaFolder: megasync.Normalize(cfg.megaFolder),
 			api.SettingKindlePath: cfg.kindlePath,

@@ -41,14 +41,20 @@ function token(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(`--color-${name}`).trim();
 }
 
-/** Returns the style that lays a book's page out for reading. */
-function pageStyle(size: number): string {
+/** The typeface a book that brings none of its own is read in. */
+const readingFace = '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif';
+
+/**
+ * Returns the style that lays a book's page out for reading. A book
+ * that carries its own fonts is left in them.
+ */
+function pageStyle(size: number, ownFonts: boolean): string {
   return `
     html { font-size: ${size}% !important; background: ${token("sheet")}; }
     body {
       box-sizing: border-box; max-width: 36em; margin: 0 auto !important;
       padding: 2.5rem 1.5rem 5rem !important; color: ${token("ink")}; line-height: 1.6;
-      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      ${ownFonts ? "" : `font-family: ${readingFace};`}
       overflow-wrap: break-word;
     }
     img, svg, video { max-width: 100%; height: auto; }
@@ -69,7 +75,7 @@ function applyStyle(frame: HTMLIFrameElement | null, size: number): void {
       style.id = "athenaeum-reading";
       (doc.head ?? doc.documentElement).appendChild(style);
     }
-    style.textContent = pageStyle(size);
+    style.textContent = pageStyle(size, doc.fonts.size > 0);
   } catch {
     return;
   }

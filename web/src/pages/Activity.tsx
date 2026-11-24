@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { api, type Job, warningsOf } from "../api";
-import { dateTime } from "../format";
+import { api, type Job, restoreProgressOf, warningsOf } from "../api";
+import { dateTime, dollars } from "../format";
 import { useLoad } from "../hooks";
 import { Link } from "../router";
 import { useSystem } from "../system";
@@ -30,7 +30,7 @@ export function ActivityPage() {
   }, [busy, jobs.reload]);
   return (
     <>
-      <PageHeader title="Activity" lead="Conversions, Kindle transfers and syncs, newest first." />
+      <PageHeader title="Activity" lead="Conversions, restores, Kindle transfers and syncs, newest first." />
       {jobs.error && <Problem>The activity could not be loaded: {jobs.error}</Problem>}
       {jobs.data?.length === 0 && (
         <Empty title="Nothing has run yet">Convert a book, send one to the Kindle or sync with MEGA.</Empty>
@@ -44,13 +44,23 @@ export function ActivityPage() {
             </span>
             <div className="min-w-[14rem] flex-1">
               {job.book_id ? (
-                <Link to={`/books/${job.book_id}`} className="hover:underline">
+                <Link
+                  // A restore leads to its page, which says what it did and what to check.
+                  to={job.kind === "restore" ? `/books/${job.book_id}/restore` : `/books/${job.book_id}`}
+                  className="hover:underline"
+                >
                   {job.title}
                 </Link>
               ) : (
                 job.title
               )}
               {job.error && <p className="text-[0.9rem] text-ribbon-deep">{job.error}</p>}
+              {restoreProgressOf(job) && (
+                <p className="text-[0.9rem] text-soft">
+                  {restoreProgressOf(job)?.read} of {restoreProgressOf(job)?.pages} pages read,{" "}
+                  {dollars(restoreProgressOf(job)?.cost ?? 0)} so far
+                </p>
+              )}
               {warningsOf(job).length > 0 && (
                 <ul aria-label="Left out" className="mt-1 list-disc pl-5 text-[0.9rem] text-soft">
                   {warningsOf(job).map((warning) => (

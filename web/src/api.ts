@@ -73,6 +73,64 @@ export interface Job {
   finished_at?: string;
 }
 
+/** How far the restore of a book has come. */
+export interface RestoreProgress {
+  stage: "sample" | "pages" | "headings" | "writing";
+  pages: number;
+  read: number;
+  cost: number;
+}
+
+/** A passage a restore could not read with certainty. */
+export interface Doubt {
+  page: number;
+  text: string;
+  reason: string;
+}
+
+/** What the restore of a book did. */
+export interface RestoreReport {
+  pages: number;
+  scans: number;
+  sections: number;
+  headings: number;
+  headings_changed: number;
+  notes_linked: number;
+  doubts: Doubt[];
+  warnings: string[];
+  cost: number;
+}
+
+/** What restoring a book would involve. */
+export interface RestoreOutlook {
+  configured: boolean;
+  model: string;
+  possible: boolean;
+  reason?: string;
+  pages: number;
+  scans: number;
+  text: number;
+  sample: number;
+  cost_low: number;
+  cost_high: number;
+  limit: number;
+  replaces: boolean;
+}
+
+/** Returns how far a running restore has come, when it has said. */
+export function restoreProgressOf(job: Job): RestoreProgress | undefined {
+  const progress = job.progress as Partial<RestoreProgress> | undefined;
+  return job.kind === "restore" && progress?.stage ? (progress as RestoreProgress) : undefined;
+}
+
+/** Returns what a finished restore did. */
+export function restoreReportOf(job: Job): RestoreReport | undefined {
+  const report = job.result as Partial<RestoreReport> | undefined;
+  return job.kind === "restore" && job.status === "done" && Array.isArray(report?.doubts)
+    ? (report as RestoreReport)
+    : undefined;
+}
+
 /** What the running server can do. */
 export interface SystemInfo {
   version: string;
@@ -323,6 +381,9 @@ export const api = {
   addFormat: (id: number, files: File[]) => request<Book>("POST", `/api/books/${id}/formats`, filesForm(files)),
   deleteFormat: (id: number, format: string) => request<Book>("DELETE", `/api/books/${id}/formats/${format}`),
   convert: (id: number, to: string) => request<Job>("POST", `/api/books/${id}/convert`, { to }),
+  restoreOutlook: (id: number) => request<RestoreOutlook>("GET", `/api/books/${id}/restore`),
+  restore: (id: number, replace: boolean) => request<Job>("POST", `/api/books/${id}/restore`, { replace }),
+  saveModelKey: (key: string) => request<void>("PUT", "/api/restore/key", { key }),
   preview: (id: number, format: string) =>
     request<Preview | Job>("GET", `/api/books/${id}/preview?${new URLSearchParams(format ? { format } : {})}`),
 

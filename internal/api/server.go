@@ -21,6 +21,7 @@ import (
 	"github.com/manzanit0/athenaeum/internal/megasync"
 	"github.com/manzanit0/athenaeum/internal/meta"
 	"github.com/manzanit0/athenaeum/internal/preview"
+	"github.com/manzanit0/athenaeum/internal/restore"
 	"github.com/manzanit0/athenaeum/internal/store"
 )
 
@@ -49,6 +50,14 @@ type Server struct {
 	Syncer *megasync.Syncer
 	// Previews keeps the EPUB renditions made to preview other formats.
 	Previews *preview.Cache
+	// Secrets keeps the key of the language model that restores books.
+	Secrets Secrets
+	// Model reaches the language model that restores books with the
+	// given key; nil means Anthropic's.
+	Model func(ctx context.Context, key string) (restore.Model, error)
+	// ModelKey is the key of the language model used until the user
+	// gives one.
+	ModelKey string
 	// Defaults holds the setting values used until the user changes them.
 	Defaults map[string]string
 	// UI is the built web interface.
@@ -102,9 +111,15 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/books/{id}/formats/{format}", s.downloadFormat)
 	mux.HandleFunc("DELETE /api/books/{id}/formats/{format}", s.deleteFormat)
 	mux.HandleFunc("POST /api/books/{id}/convert", s.convertBook)
+	mux.HandleFunc("GET /api/books/{id}/restore", s.getRestoreOutlook)
+	mux.HandleFunc("POST /api/books/{id}/restore", s.restoreBook)
 	mux.HandleFunc("GET /api/books/{id}/preview", s.getPreview)
 	mux.HandleFunc("GET /api/books/{id}/preview/{format}/{path...}", s.getPreviewFile)
 	mux.HandleFunc("POST /api/library/rescan", s.rescan)
+
+	mux.HandleFunc("GET /api/restore", s.getRestoreSetup)
+	mux.HandleFunc("PUT /api/restore/key", s.putModelKey)
+	mux.HandleFunc("DELETE /api/restore/key", s.deleteModelKey)
 
 	mux.HandleFunc("GET /api/jobs", s.listJobs)
 	mux.HandleFunc("GET /api/jobs/{id}", s.getJob)
@@ -241,6 +256,7 @@ var errorStatuses = []struct {
 	{library.ErrInvalidDate, http.StatusBadRequest},
 	{errBadRequest, http.StatusBadRequest},
 	{errUnreadable, http.StatusUnprocessableEntity},
+	{errNoModelKey, http.StatusConflict},
 	{preview.ErrNotFound, http.StatusNotFound},
 	{convert.ErrUnavailable, http.StatusServiceUnavailable},
 	{convert.ErrKept, http.StatusUnprocessableEntity},

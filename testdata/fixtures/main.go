@@ -48,11 +48,17 @@ func main() {
 		"cosmicomics.epub": booktest.EPUB(booktest.Book{Title: "Cosmicomics", Author: "Italo Calvino", Language: "en"}),
 		"lighthouse.epub":  booktest.EPUB(booktest.Book{Title: "The Lighthouse Keepers", Author: "Mara Quill", Language: "en"}),
 		"faros.epub":       booktest.EPUB(booktest.Book{Title: "Faros del norte", Author: "Mara Quill", Language: "es"}),
-		"knots.pdf":        booktest.PDF(booktest.Book{Title: "Knots and Splices", Author: "Eli Tarn"}),
-		"harbour.epub":     booktest.EPUB(booktest.Book{Title: "Harbour Lights", Author: "Nell Ward", Language: "en"}),
-		"anchors.epub":     booktest.EPUB(booktest.Book{Title: "Anchors Aweigh", Author: "Abel Finch", Language: "en"}),
-		"mooring.epub":     booktest.EPUB(booktest.Book{Title: "Mooring Lines", Author: "Cora Pike", Language: "en"}),
-		"skerries.epub":    booktest.EPUB(booktest.Book{Title: "Letters from the Skerries", Author: "Tove Aldane", Language: "en"}),
+		"soundings.pdf": booktest.ScannedPDF(booktest.Book{
+			Title: "Soundings", Author: "Hugh Carrow", Chapters: []string{"THE FALMOUTH STATION", "Homeward"},
+		}, 30),
+		"lead-line.pdf": booktest.ScannedPDF(booktest.Book{
+			Title: "The Lead Line", Author: "Hugh Carrow", Chapters: []string{"Deep Water"},
+		}, 12),
+		"knots.pdf":     booktest.PDF(booktest.Book{Title: "Knots and Splices", Author: "Eli Tarn"}),
+		"harbour.epub":  booktest.EPUB(booktest.Book{Title: "Harbour Lights", Author: "Nell Ward", Language: "en"}),
+		"anchors.epub":  booktest.EPUB(booktest.Book{Title: "Anchors Aweigh", Author: "Abel Finch", Language: "en"}),
+		"mooring.epub":  booktest.EPUB(booktest.Book{Title: "Mooring Lines", Author: "Cora Pike", Language: "en"}),
+		"skerries.epub": booktest.EPUB(booktest.Book{Title: "Letters from the Skerries", Author: "Tove Aldane", Language: "en"}),
 		"packet.epub": booktest.EPUB(booktest.Book{
 			Title: "The Packet Boat", Author: "Hugh Carrow", Language: "en",
 			Tags: []string{

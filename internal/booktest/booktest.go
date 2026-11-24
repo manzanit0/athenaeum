@@ -327,3 +327,33 @@ func TextPDF(b Book) []byte {
 	doc.Info = doc.Add(fmt.Sprintf("<< /Title (%s) /Author (%s) >>", pdftest.Escape(b.Title), pdftest.Escape(b.Author)))
 	return doc.Bytes("")
 }
+
+// ScannedPDF returns b as a PDF whose pages are pictures, the way a
+// scanner makes them: scans pages that each show one grey image and
+// nothing else, followed by one page with a text layer for every
+// chapter.
+func ScannedPDF(b Book, scans int) []byte {
+	doc := pdftest.New()
+	const width, height = 40, 60
+	pixels := bytes.Repeat([]byte{0xEE}, width*height)
+	image := doc.Flate(fmt.Sprintf("/Type /XObject /Subtype /Image /Width %d /Height %d "+
+		"/ColorSpace /DeviceGray /BitsPerComponent 8", width, height), pixels)
+	var pages []pdftest.Page
+	for range scans {
+		pages = append(pages, pdftest.Page{
+			Content: "q 612 0 0 792 0 0 cm /Im1 Do Q", XObjects: map[string]int{"Im1": image},
+		})
+	}
+	fonts := map[string]int{"F1": doc.Font("Helvetica"), "F2": doc.Font("Helvetica-Bold")}
+	for _, name := range b.Chapters {
+		var content strings.Builder
+		content.WriteString(pdftest.Text("F2", 18, 72, 700, name))
+		for i, line := range pdfLines {
+			content.WriteString(pdftest.Text("F1", 10, 72, 670-float64(i)*14, line))
+		}
+		pages = append(pages, pdftest.Page{Content: content.String(), Fonts: fonts})
+	}
+	doc.Document(pages, "")
+	doc.Info = doc.Add(fmt.Sprintf("<< /Title (%s) /Author (%s) >>", pdftest.Escape(b.Title), pdftest.Escape(b.Author)))
+	return doc.Bytes("")
+}

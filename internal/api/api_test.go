@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image/color"
 	"io"
@@ -24,6 +25,8 @@ import (
 	"github.com/manzanit0/athenaeum/internal/megasync"
 	"github.com/manzanit0/athenaeum/internal/megasync/megatest"
 	"github.com/manzanit0/athenaeum/internal/preview"
+	"github.com/manzanit0/athenaeum/internal/restore"
+	"github.com/manzanit0/athenaeum/internal/restore/restoretest"
 	"github.com/manzanit0/athenaeum/internal/store"
 	"github.com/manzanit0/athenaeum/internal/testbin"
 	"github.com/manzanit0/athenaeum/internal/vault"
@@ -55,6 +58,9 @@ type env struct {
 	delay string
 	// database is the path of the database file.
 	database string
+	// decline, when set, is why the stand-in for the language model
+	// says that a book cannot be restored well.
+	decline string
 }
 
 // newEnv starts a server backed by temporary folders, a fake converter,
@@ -95,6 +101,10 @@ func newEnv(t *testing.T) *env {
 		}),
 		Syncer:   &megasync.Syncer{Accounts: accounts, Store: st, Library: lib},
 		Previews: &preview.Cache{Dir: e.cache},
+		Secrets:  secrets,
+		Model: func(context.Context, string) (restore.Model, error) {
+			return &restoretest.Model{Name: restore.DefaultModel, Decline: e.decline, Tokens: 1000}, nil
+		},
 		Defaults: map[string]string{},
 		UI:       fstest.MapFS{"index.html": {Data: []byte("<html>shell</html>")}},
 		Version:  "test",

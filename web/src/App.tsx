@@ -10,6 +10,7 @@ import { DevicePage } from "./pages/Device";
 import { LibrariesPage } from "./pages/Libraries";
 import { LibraryPage } from "./pages/Library";
 import { PreviewPage } from "./pages/Preview";
+import { RestorePage } from "./pages/Restore";
 import { SyncPage } from "./pages/Sync";
 import { Link, usePath } from "./router";
 import { fallbackSystem, SystemContext } from "./system";
@@ -46,6 +47,10 @@ function page(path: string, libraries: Loaded<Libraries>): ReactNode {
   const preview = /^\/books\/(\d+)\/preview$/.exec(path);
   if (preview) {
     return <PreviewPage key={preview[1]} id={Number(preview[1])} />;
+  }
+  const restore = /^\/books\/(\d+)\/restore$/.exec(path);
+  if (restore) {
+    return <RestorePage key={restore[1]} id={Number(restore[1])} />;
   }
   switch (path) {
     case "/":
