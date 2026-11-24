@@ -170,7 +170,7 @@ func (cfg config) newServer(dir string, st *store.Store) (*api.Server, error) {
 		Store:    st,
 		Library:  lib,
 		Tools:    tools,
-		Syncer:   &megasync.Syncer{Accounts: accounts, Store: st, Library: lib},
+		Syncer:   &megasync.Syncer{Accounts: accounts, Store: st, Library: lib, Trash: filepath.Join(dir, "trash")},
 		Previews: &preview.Cache{Dir: filepath.Join(dir, "cache", "preview")},
 		Secrets:  secrets,
 		Model:    restoreModel(),

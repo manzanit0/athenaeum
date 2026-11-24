@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -222,6 +223,19 @@ func (d drive) Remove(remote string) error {
 	return os.RemoveAll(d.local(remote))
 }
 
+// entry describes the file kept at file, which goes by rel in a listing
+// and by remote on the drive.
+func entry(rel, remote, file string) (megasync.Entry, error) {
+	info, err := os.Stat(file)
+	if err != nil {
+		return megasync.Entry{}, err
+	}
+	return megasync.Entry{
+		Path: remote, Rel: rel, Size: info.Size(), Modified: info.ModTime(),
+		Version: strconv.FormatInt(info.ModTime().UnixNano(), 10),
+	}, nil
+}
+
 // Files implements megasync.Drive.
 func (d drive) Files(folder string) ([]megasync.Entry, error) {
 	found, err := tree(d.local(folder))
@@ -230,13 +244,45 @@ func (d drive) Files(folder string) ([]megasync.Entry, error) {
 	}
 	var files []megasync.Entry
 	for rel, e := range found {
-		if !e.Dir {
-			files = append(files, megasync.Entry{
-				Path: megasync.Absolute(folder) + "/" + rel, Size: e.Size, Modified: e.MTime,
-			})
+		if e.Dir {
+			continue
 		}
+		file, err := entry(rel, megasync.Absolute(folder)+"/"+rel, e.Path)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, file)
 	}
 	return files, nil
+}
+
+// Upload implements megasync.Drive.
+func (d drive) Upload(local, remote string) (megasync.Entry, error) {
+	time.Sleep(d.delay())
+	target := d.local(remote)
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		return megasync.Entry{}, err
+	}
+	if err := copyFile(local, target); err != nil {
+		return megasync.Entry{}, err
+	}
+	return entry("", megasync.Absolute(remote), target)
+}
+
+// Download implements megasync.Drive.
+func (d drive) Download(remote, local string) (megasync.Entry, error) {
+	time.Sleep(d.delay())
+	source, err := entry("", megasync.Absolute(remote), d.local(remote))
+	if err != nil {
+		return source, err
+	}
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		return source, err
+	}
+	if err := copyFile(d.local(remote), local); err != nil {
+		return source, err
+	}
+	return source, os.Chtimes(local, source.Modified, source.Modified)
 }
 
 // Read implements megasync.Drive.

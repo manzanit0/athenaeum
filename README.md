@@ -211,7 +211,9 @@ Everything is set through environment variables.
 
 A library is a folder that holds everything about one collection:
 `athenaeum.db`, the `library/` folder of books, the key protecting its
-MEGA session, and `cache/`, which is safe to delete. One library is open
+MEGA session, `cache/`, which is safe to delete, and `trash/`, which
+keeps the files a sync removed from the library or replaced, one folder
+per sync, until you delete it. One library is open
 at a time.
 
 - **The library menu**: the control beside the application's name shows
@@ -465,10 +467,30 @@ The whole `library/` folder is synced, `_athenaeum/` included, so a
 download followed by the automatic rescan rebuilds the database from MEGA
 alone.
 
-Files deleted, renamed or moved here are remembered, with the book they
-belonged to, until the next upload removes their old copies from MEGA. A
-download in between does not bring them back. Folders left empty on MEGA
-are not removed.
+A sync remembers, for every file, how the library and MEGA looked when
+they last matched. The next sync compares each side with that record, so
+it can tell which side changed: a book edited, renamed or deleted on one
+machine is edited, renamed or deleted on the others when they sync,
+rather than being put back by them. The record is kept per MEGA account
+and folder and starts over when either changes. With nothing recorded,
+as on the first sync, nothing is deleted on either side: files the two
+sides share are compared and every other file is copied across.
+
+When a file changed on both sides since they last matched, the newer
+version stays, and a changed file outlives its deletion on the other
+side. The sync lists these files and says which side it kept. The
+version that lost is not destroyed: on MEGA it goes to the Rubbish Bin,
+and in the library to `trash/`. Two machines that retitle the same book
+between syncs can still end up with two copies of its file.
+
+A sync stops rather than empty one side when the other has lost every
+synced file at once, as when the MEGA folder was moved or the library
+disk is missing. An upload or a download on its own gets past that.
+
+Files deleted, renamed or moved here are also remembered, with the book
+they belonged to, until the next upload removes their old copies from
+MEGA. A download in between does not bring them back. Folders left empty
+on MEGA are not removed.
 
 A sync reports books, not files. A book whose title or author changed is
 one update, with its file renamed, rather than a deletion and an upload;
@@ -484,12 +506,13 @@ they are said in a sentence, with "Change" to get back to them.
 
 | Action | Effect |
 | --- | --- |
-| Sync | Removes from MEGA what was deleted here, uploads, then downloads. Books deleted directly on MEGA come back on the next upload. |
+| Sync | Merges both sides: what changed or was deleted here since the last sync goes to MEGA, and what changed or was deleted on MEGA comes here. |
 | Upload to MEGA, under "More options" | MEGA catches up with the library. With the delete option, MEGA becomes an exact mirror. |
 | Download from MEGA, under "More options" | The library catches up with MEGA. With the delete option, the library becomes an exact mirror. |
 
-Deletions on MEGA go to its Rubbish Bin; deletions in the library are
-permanent.
+Deletions on MEGA go to its Rubbish Bin. What a sync both ways removes
+from the library goes to `trash/`; what a download with the delete
+option removes is deleted for good.
 
 Every upload and download is planned first, which gives the number of
 changes and their size. Progress then advances as each change starts,
@@ -580,7 +603,7 @@ answers `503` with `"code": "no_library"` when none is open.
 | `GET /api/sync` | Whether a MEGA account is `signed_in`, its `account`, the folder and the last run. |
 | `POST /api/sync/session` | `{"email": "", "password": "", "code": ""}`; signs in to MEGA. `401` with `code_required` when the account needs a two-factor code. |
 | `DELETE /api/sync/session` | Signs out; `confirmed` says whether MEGA confirmed the end of the session. |
-| `POST /api/sync` | `{"direction": "both", "delete": false, "dry_run": false}`. Returns a job. The result describes each side that takes part, `mega` and `library`, book by book: `books` with their `kind` (`add`, `update` or `remove`), `title`, `authors`, whether the `details` change, how the `cover` changes and what happens to the `files` (`add`, `replace`, `remove`, or `rename` with `from`), and the `other` files that belong to no book. A dry run plans the same without changing anything. The raw file `actions` per direction, with the `files` and `bytes` transferred, are under `push` and `pull`. |
+| `POST /api/sync` | `{"direction": "both", "delete": false, "dry_run": false}`. Returns a job. The result describes each side that takes part, `mega` and `library`, book by book: `books` with their `kind` (`add`, `update` or `remove`), `title`, `authors`, whether the `details` change, how the `cover` changes and what happens to the `files` (`add`, `replace`, `remove`, or `rename` with `from`), and the `other` files that belong to no book. A dry run plans the same without changing anything. The raw file `actions` per direction, with the `files` and `bytes` transferred, are under `push` and `pull`. A sync both ways lists under `conflicts` the files changed on both sides, each with its `path` and the side whose version was `kept`, `library` or `mega`. |
 
 ## Development
 

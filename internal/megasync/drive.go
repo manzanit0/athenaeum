@@ -4,6 +4,7 @@ package megasync
 
 import (
 	"errors"
+	"path"
 	"strings"
 	"time"
 )
@@ -23,6 +24,19 @@ var (
 
 // excludes lists the file name globs never synced.
 var excludes = []string{".DS_Store"}
+
+// Excluded reports whether any part of the slash separated path rel
+// names something that is never synced.
+func Excluded(rel string) bool {
+	for _, part := range strings.Split(rel, "/") {
+		for _, glob := range excludes {
+			if ok, _ := path.Match(glob, part); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // Action is one change made, or planned, by a sync.
 type Action struct {
@@ -70,10 +84,16 @@ func (r *Result) tally() {
 type Entry struct {
 	// Path is the absolute remote path.
 	Path string `json:"path"`
+	// Rel is the path relative to the folder that was listed, spelled as
+	// the file is called once downloaded.
+	Rel string `json:"rel,omitempty"`
 	// Size is the size in bytes.
 	Size int64 `json:"size"`
 	// Modified is the remote timestamp.
 	Modified time.Time `json:"modified"`
+	// Version identifies this content of the file. Replacing the file
+	// on MEGA gives it another.
+	Version string `json:"version,omitempty"`
 }
 
 // Session is what MEGA hands out at sign-in to open the account again
@@ -101,8 +121,18 @@ type Drive interface {
 	// Remove moves the remote path to the Rubbish Bin. A missing path is
 	// not an error.
 	Remove(remote string) error
-	// Files lists the files below the remote folder.
+	// Files lists the files below the remote folder, leaving out those
+	// never synced. A folder MEGA does not have holds none.
 	Files(folder string) ([]Entry, error)
+	// Upload stores the local file at the remote path, in place of any
+	// file there, creating the folders above it as needed. It returns
+	// the file as MEGA now has it.
+	Upload(local, remote string) (Entry, error)
+	// Download writes the remote file to the local path, in place of
+	// any file there, creating the folders above it as needed, and sets
+	// its modification time to the remote timestamp. It returns the file
+	// as MEGA had it.
+	Download(remote, local string) (Entry, error)
 	// Read returns the content of the remote file.
 	Read(remote string) ([]byte, error)
 }

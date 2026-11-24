@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/manzanit0/mega-cli/pkg/mirror"
 	"github.com/manzanit0/mega-cli/pkg/remote"
@@ -94,16 +98,64 @@ func (d sdkDrive) Remove(path string) error {
 	return err
 }
 
+// sdkEntry describes the file e at the remote path p, which goes by rel
+// in a listing.
+func sdkEntry(rel string, p remote.Path, e remote.Entry) Entry {
+	version := e.Handle + "@" + strconv.FormatInt(e.Modified.Unix(), 10)
+	return Entry{Path: p.String(), Rel: rel, Size: e.Size, Modified: e.Modified, Version: version}
+}
+
 // Files implements Drive.
 func (d sdkDrive) Files(folder string) ([]Entry, error) {
+	root, _, err := d.c.Resolve(remote.Parse(Absolute(folder)))
+	if remote.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
 	var files []Entry
-	err := d.c.Walk(remote.Parse(Absolute(folder)), func(p remote.Path, e remote.Entry) error {
-		if !e.IsDir() {
-			files = append(files, Entry{Path: p.String(), Size: e.Size, Modified: e.Modified})
+	err = d.c.Walk(root, func(p remote.Path, e remote.Entry) error {
+		parts := p.Parts[len(root.Parts):]
+		names := make([]string, len(parts))
+		for i, part := range parts {
+			names[i] = remote.LocalName(part)
+		}
+		rel := strings.Join(names, "/")
+		if !e.IsDir() && !Excluded(rel) {
+			files = append(files, sdkEntry(rel, p, e))
 		}
 		return nil
 	})
 	return files, err
+}
+
+// Upload implements Drive.
+func (d sdkDrive) Upload(local, path string) (Entry, error) {
+	dst := remote.Parse(Absolute(path))
+	if _, err := d.c.Mkdir(dst.Dir(), true); err != nil {
+		return Entry{}, err
+	}
+	e, err := d.c.Upload(local, dst, true, nil)
+	if err != nil {
+		return Entry{}, err
+	}
+	return sdkEntry("", dst, e), nil
+}
+
+// Download implements Drive.
+func (d sdkDrive) Download(path, local string) (Entry, error) {
+	src, e, err := d.c.Resolve(remote.Parse(Absolute(path)))
+	if err != nil {
+		return Entry{}, err
+	}
+	if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+		return Entry{}, err
+	}
+	if err := d.c.Download(src, local, nil); err != nil {
+		return Entry{}, err
+	}
+	return sdkEntry("", src, e), os.Chtimes(local, e.Modified, e.Modified)
 }
 
 // Read implements Drive.
