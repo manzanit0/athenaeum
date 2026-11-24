@@ -1,0 +1,119 @@
+name: CI
+
+# Checks every pull request: the Go build and tests, the web interface's
+# type check and build, the Playwright journeys and the Docker image.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  go:
+    name: Go build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      # web/dist is committed, so the interface is embedded as is.
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+  web:
+    name: Web build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+
+      # The interface has no test suite of its own; its build type-checks
+      # with tsc before bundling, which is the check it has.
+      - name: Type-check and build
+        run: npm run build
+
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    env:
+      # The suite defaults to the installed Google Chrome. Here it drives
+      # the Chromium that Playwright downloads, pinned to its version.
+      ATHENAEUM_E2E_CHANNEL: chromium
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            e2e/package-lock.json
+
+      # Rebuild web/dist so the journeys run against the interface in this
+      # pull request rather than the committed build, which may be stale.
+      - name: Build the web interface
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      # Playwright starts the server itself through e2e/start-server.sh.
+      - name: Run the journeys
+        working-directory: e2e
+        run: npx playwright test
+
+      - name: Upload the traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: e2e/test-results
+          retention-days: 7
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
