@@ -262,16 +262,19 @@ func (c *converter) documents(ctx context.Context, sections []preview.Section) e
 }
 
 // cover stores the cover: the image at the given path, or the one the
-// EPUB declares.
+// EPUB declares. A book left without a cover gets one made of its title
+// and authors, so the Kindle has a picture to show for it on its shelf.
 func (c *converter) cover(path string, declared *meta.Cover) {
-	if path != "" {
-		if data, err := os.ReadFile(path); err == nil {
-			c.setCover(data)
-			return
-		}
-	}
-	if declared != nil {
+	if data, err := os.ReadFile(path); path != "" && err == nil {
+		c.setCover(data)
+	} else if declared != nil {
 		c.setCover(declared.Data)
+	}
+	if c.book.Cover >= 0 {
+		return
+	}
+	if data := titleCover(c.book.Title, c.book.Authors); data != nil {
+		c.setCover(data)
 	}
 }
 

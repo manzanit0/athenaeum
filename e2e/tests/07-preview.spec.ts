@@ -33,7 +33,9 @@ test("reads an EPUB section by section", async ({ page, request }) => {
 
   await page.getByRole("button", { name: "Previous" }).click();
   await expect(pages.getByRole("heading", { name: "Neap Tides" })).toBeVisible();
-  expect(await textSize()).toBeGreaterThan(before);
+  // The size is put on a section once it has loaded, which can be after
+  // its heading shows.
+  await expect.poll(textSize).toBeGreaterThan(before);
 
   await page.getByRole("link", { name: "Back to the book" }).click();
   await expect(page).toHaveURL(`/books/${book.id}`);

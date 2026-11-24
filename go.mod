@@ -5,6 +5,7 @@ go 1.27.4
 require (
 	github.com/docker/docker-agent v1.164.0
 	github.com/manzanit0/mega-cli v0.0.0-20261118091220-341e3c3e68c4
+	golang.org/x/image v0.48.0
 	modernc.org/sqlite v1.62.0
 )
 
@@ -66,7 +67,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
-	golang.org/x/image v0.48.0 // indirect
 	golang.org/x/mod v0.43.0 // indirect
 	golang.org/x/net v0.63.0 // indirect
 	golang.org/x/oauth2 v0.38.0 // indirect
