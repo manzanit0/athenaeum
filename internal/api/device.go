@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,8 +15,8 @@ import (
 	"github.com/manzanit0/athenaeum/internal/store"
 )
 
-// defaultDeviceFormat is the format books are converted to when none of
-// their files can be read by the e-reader.
+// defaultDeviceFormat is the format books are sent in, converting them to
+// it when they are not in it already.
 const defaultDeviceFormat = "azw3"
 
 // deviceBook is a book on the e-reader, linked to the library when it was
@@ -62,12 +63,17 @@ func (s *Server) deviceStatus(w http.ResponseWriter, _ *http.Request) {
 
 // listDeviceBooks returns the books on the e-reader.
 func (s *Server) listDeviceBooks(w http.ResponseWriter, _ *http.Request) {
-	files, err := s.Kindle.List()
+	// The links are read before the files are listed: a book is copied
+	// to the Kindle before it is linked, so every link read here has its
+	// file in the listing unless it was removed. Reading them the other
+	// way round would forget the link of a book sent while the slow
+	// listing was running, and show it as not in the library.
+	links, err := s.Store.DeviceFiles()
 	if err != nil {
 		fail(w, err)
 		return
 	}
-	links, err := s.Store.DeviceFiles()
+	files, err := s.Kindle.List()
 	if err != nil {
 		fail(w, err)
 		return
@@ -122,18 +128,11 @@ func (s *Server) sendToDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // deviceFormat chooses the format of book to send. An empty requested
-// format selects the preferred supported format the book has, or the
-// default device format when it has none.
+// format selects the best one for the book: see preferredDeviceFormat.
 func (s *Server) deviceFormat(book *store.Book, requested string) (string, error) {
 	format := requested
 	if format == "" {
-		format = defaultDeviceFormat
-		for _, candidate := range device.Formats() {
-			if _, ok := book.Format(candidate); ok {
-				format = candidate
-				break
-			}
-		}
+		format = s.preferredDeviceFormat(book)
 	}
 	if !device.Supports(format) {
 		return "", fmt.Errorf("%w: a Kindle cannot read %s files", errBadRequest, format)
@@ -145,6 +144,26 @@ func (s *Server) deviceFormat(book *store.Book, requested string) (string, error
 		return "", err
 	}
 	return format, nil
+}
+
+// preferredDeviceFormat returns the format to send book in when none was
+// asked for: its AZW3 when it has one; otherwise its EPUB, converted to
+// AZW3, which reads and looks better on a Kindle than the older formats;
+// otherwise the best format the Kindle reads that it has, such as a
+// PDF; and failing all of those, a conversion to AZW3 of whatever it has.
+func (s *Server) preferredDeviceFormat(book *store.Book) string {
+	if _, ok := book.Format(defaultDeviceFormat); ok {
+		return defaultDeviceFormat
+	}
+	if _, ok := book.Format("epub"); ok && s.Tools.Supports("epub", defaultDeviceFormat) {
+		return defaultDeviceFormat
+	}
+	for _, candidate := range device.Formats() {
+		if _, ok := book.Format(candidate); ok {
+			return candidate
+		}
+	}
+	return defaultDeviceFormat
 }
 
 // send copies the given format of a book to the e-reader, converting the
@@ -174,11 +193,47 @@ func (s *Server) send(ctx context.Context, id int64, format string) (*sendResult
 		defer os.Remove(embedded)
 		src, result.Embedded = embedded, true
 	}
-	if result.Path, err = s.Kindle.Put(file.Filename, src); err != nil {
+	s.deviceMu.Lock()
+	defer s.deviceMu.Unlock()
+	name, err := s.deviceName(id, file.Filename)
+	if err != nil {
+		return nil, err
+	}
+	if result.Path, err = s.Kindle.Put(name, src); err != nil {
 		return nil, err
 	}
 	link := store.DeviceFile{Path: result.Path, BookID: id, Format: format}
-	return result, s.Store.SetDeviceFile(link)
+	if err := s.Store.SetDeviceFile(link); err != nil {
+		return nil, err
+	}
+	// Without a thumbnail the Kindle lists the book as "No image
+	// available", so a failure is worth a warning but not a failed send.
+	if err := s.Kindle.PutThumbnail(result.Path, s.Library.CoverPath(book)); err != nil && !errors.Is(err, device.ErrNoThumbnail) {
+		slog.Warn("writing the Kindle thumbnail", "book", id, "path", result.Path, "error", err)
+	}
+	return result, nil
+}
+
+// deviceName returns the name to give the file of the book with the given
+// ID on the e-reader. It is the file's own name unless the e-reader holds
+// a file of that name that is not this book's, which sending would
+// overwrite: that file gets its own name, and a number is added to this
+// one. The caller holds deviceMu.
+func (s *Server) deviceName(id int64, name string) (string, error) {
+	links, err := s.Store.DeviceFiles()
+	if err != nil {
+		return "", err
+	}
+	ext := path.Ext(name)
+	stem := strings.TrimSuffix(name, ext)
+	for n := 2; n < 1000; n++ {
+		rel := path.Join("documents", name)
+		if link, linked := links[rel]; (linked && link.BookID == id) || !s.Kindle.Exists(rel) {
+			return name, nil
+		}
+		name = fmt.Sprintf("%s (%d)%s", stem, n, ext)
+	}
+	return "", fmt.Errorf("no free file name for %q on the Kindle", stem)
 }
 
 // embeddedCopy returns the path of a scratch copy of the file at src with

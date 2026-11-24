@@ -75,8 +75,12 @@ const (
 	exthCreatorRevision = 535
 )
 
-// docType marks the file as an ebook.
-const docType = "EBOK"
+// docType marks the file as a personal document. A book marked as an
+// Amazon ebook (EBOK) is looked up by its identifier in Amazon's store
+// when the Kindle is online, and a book Amazon does not know ends up
+// with a blank "No image available" cover whatever picture is stored
+// for it. A personal document gets the cover it carries itself.
+const docType = "PDOC"
 
 // The generator the file claims: KindleGen 2.9, as calibre does, so the
 // Kindle treats the book like any other KF8 file.

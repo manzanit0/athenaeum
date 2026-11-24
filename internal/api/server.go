@@ -81,6 +81,9 @@ type Server struct {
 	previewMu sync.Mutex
 	// previewJobs maps the renditions being made to the jobs making them.
 	previewJobs map[string]int64
+	// deviceMu serializes copying books to the e-reader, so that books
+	// sent at the same time do not pick the same file name.
+	deviceMu sync.Mutex
 }
 
 // Handler returns the HTTP handler serving the API and the web interface.
