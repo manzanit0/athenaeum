@@ -19,3 +19,5 @@ testdata/bin/mega
 # `task web` or `task web:docker`.
 
 athenaeum
+
+.claude/worktrees
