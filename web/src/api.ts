@@ -33,6 +33,35 @@ export interface Book extends Metadata {
   updated_at: string;
 }
 
+/** What to search the internet for when looking for the cover of a book. */
+export interface CoverQuery {
+  title: string;
+  author: string;
+  isbn: string;
+}
+
+/** A cover image found on the internet, which can be chosen for a book. */
+export interface CoverCandidate {
+  id: string;
+  /** The website the image came from. */
+  source: string;
+  width: number;
+  height: number;
+}
+
+/** A website that a search for covers could not ask, and why. */
+export interface CoverFailure {
+  source: string;
+  reason: string;
+}
+
+/** What a search for covers found, best first. */
+export interface CoverSearch {
+  candidates: CoverCandidate[];
+  /** The websites that could not be asked. */
+  failed: CoverFailure[];
+}
+
 /** How many books share a value. */
 export interface Tally {
   value: string;
@@ -387,6 +416,10 @@ export const api = {
   deleteBook: (id: number) => request<void>("DELETE", `/api/books/${id}`),
   setCover: (id: number, image: Blob) => request<Book>("PUT", `/api/books/${id}/cover`, image),
   removeCover: (id: number) => request<Book>("DELETE", `/api/books/${id}/cover`),
+  findCovers: (id: number, query: CoverQuery) =>
+    request<CoverSearch>("GET", `/api/books/${id}/covers?${new URLSearchParams({ ...query })}`),
+  chooseFoundCover: (id: number, candidate: string) =>
+    request<Book>("POST", `/api/books/${id}/cover/found`, { id: candidate }),
   addFormat: (id: number, files: File[]) => request<Book>("POST", `/api/books/${id}/formats`, filesForm(files)),
   deleteFormat: (id: number, format: string) => request<Book>("DELETE", `/api/books/${id}/formats/${format}`),
   convert: (id: number, to: string) => request<Job>("POST", `/api/books/${id}/convert`, { to }),
@@ -428,6 +461,11 @@ export const api = {
 /** Returns the address of a book's cover image. */
 export function coverUrl(book: Book): string {
   return `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}`;
+}
+
+/** Returns the address of the image of a cover that a search found. */
+export function foundCoverUrl(candidate: CoverCandidate): string {
+  return `/api/covers/${candidate.id}`;
 }
 
 /** Returns the address that downloads one file of a book. */

@@ -20,6 +20,7 @@ import (
 	"github.com/manzanit0/athenaeum/internal/api"
 	"github.com/manzanit0/athenaeum/internal/booktest"
 	"github.com/manzanit0/athenaeum/internal/convert"
+	"github.com/manzanit0/athenaeum/internal/covers"
 	"github.com/manzanit0/athenaeum/internal/device"
 	"github.com/manzanit0/athenaeum/internal/library"
 	"github.com/manzanit0/athenaeum/internal/megasync"
@@ -61,6 +62,8 @@ type env struct {
 	// decline, when set, is why the stand-in for the language model
 	// says that a book cannot be restored well.
 	decline string
+	// covers is the stand-in for the websites that covers are found on.
+	covers *coverStub
 }
 
 // newEnv starts a server backed by temporary folders, a fake converter,
@@ -91,9 +94,11 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
+	e.covers = &coverStub{images: [][]byte{coverFound, coverOther}}
 	srv := &api.Server{
 		Store:   st,
 		Library: lib,
+		Covers:  &covers.Finder{Sources: []covers.Source{e.covers}},
 		Tools:   e.tools,
 		Kindle: device.New(func() string {
 			path, _ := st.Setting(api.SettingKindlePath, e.kindle)

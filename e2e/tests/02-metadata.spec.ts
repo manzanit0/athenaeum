@@ -57,7 +57,7 @@ test("edits the details and cover of a book", async ({ page, request }) => {
   await expect(categories.getByRole("listitem")).toContainText(["Classics", "Fiction / Time Travel"]);
   await expect(page.getByLabel("Description")).toHaveValue("Dana is pulled back in time to a Maryland plantation.");
 
-  await page.getByLabel("Change cover").setInputFiles(fixture("cover.png"));
+  await page.getByLabel("Upload cover").setInputFiles(fixture("cover.png"));
   await expect(notice(page, "Cover changed")).toBeVisible();
   await page.getByRole("button", { name: "Remove cover" }).click();
   await expect(notice(page, "Cover removed")).toBeVisible();
