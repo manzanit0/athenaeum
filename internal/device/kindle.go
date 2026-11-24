@@ -220,6 +220,18 @@ func (k *Kindle) Put(name, src string) (string, error) {
 	return dest, nil
 }
 
+// Exists reports whether the Kindle holds a file at rel, a path relative
+// to the Kindle root.
+func (k *Kindle) Exists(rel string) bool {
+	root, err := k.open()
+	if err != nil {
+		return false
+	}
+	defer root.Close()
+	_, err = root.Lstat(rel)
+	return err == nil
+}
+
 // Open opens the book at rel, a path relative to the Kindle root.
 func (k *Kindle) Open(rel string) (*os.File, error) {
 	if !validPath(rel) {
@@ -244,6 +256,7 @@ func (k *Kindle) Delete(rel string) error {
 		return err
 	}
 	defer root.Close()
+	removeThumbnail(root, rel)
 	if err := root.Remove(rel); err != nil {
 		return err
 	}

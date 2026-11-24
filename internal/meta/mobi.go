@@ -40,9 +40,13 @@ const (
 	exthSubject = 105
 	// exthPublished holds the publication date.
 	exthPublished = 106
+	// exthASIN holds the identifier of the book on a Kindle.
+	exthASIN = 113
 	// exthCoverOffset holds the cover image index relative to the first
 	// image record.
 	exthCoverOffset = 201
+	// exthDocType holds the kind of document: EBOK or PDOC.
+	exthDocType = 501
 	// exthUpdatedTitle holds a title overriding the full name.
 	exthUpdatedTitle = 503
 	// exthLanguage holds the language code.
@@ -165,6 +169,48 @@ func readMOBI(path string, withCover bool) (Metadata, *Cover, error) {
 		cover = file.cover(int(be.Uint32(rec0[108:112])) + int(coverOffset))
 	}
 	return meta, cover, nil
+}
+
+// KindleID returns the identifier (ASIN) and the document type (EBOK or
+// PDOC) the MOBI or AZW3 file at path declares, which a Kindle uses to
+// name the files it keeps for the book. Both are empty when the file
+// declares no identifier.
+func KindleID(path string) (asin, kind string) {
+	file, err := openMOBI(path)
+	if err != nil {
+		return "", ""
+	}
+	defer file.f.Close()
+	rec0, err := file.record(0, maxRecord0Bytes)
+	if err != nil || file.kind != "BOOKMOBI" || len(rec0) < mobiMinRecord0 || string(rec0[16:20]) != "MOBI" {
+		return "", ""
+	}
+	be := binary.BigEndian
+	if be.Uint32(rec0[128:132])&exthFlag == 0 {
+		return "", ""
+	}
+	exth := slice(rec0, mobiHeaderOffset+be.Uint32(rec0[20:24]), uint32(len(rec0)))
+	if len(exth) < 12 || string(exth[:4]) != "EXTH" {
+		return "", ""
+	}
+	count := be.Uint32(exth[8:12])
+	pos := 12
+	for i := uint32(0); i < count && pos+8 <= len(exth); i++ {
+		recordKind := be.Uint32(exth[pos:])
+		size := int(be.Uint32(exth[pos+4:]))
+		if size < 8 || pos+size > len(exth) {
+			break
+		}
+		data := string(exth[pos+8 : pos+size])
+		pos += size
+		switch recordKind {
+		case exthASIN:
+			asin = strings.TrimSpace(decodeUTF8([]byte(data)))
+		case exthDocType:
+			kind = strings.TrimSpace(decodeUTF8([]byte(data)))
+		}
+	}
+	return asin, kind
 }
 
 // slice returns up to length bytes of b starting at offset, or nil when

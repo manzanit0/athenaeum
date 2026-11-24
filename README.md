@@ -63,8 +63,10 @@ Kindle formats are unpacked first.
 
 With the Kindle plugged in as a USB drive, see what is on it, remove
 books, copy device books into the library and send library books,
-which are ticked on the shelf. A book with no Kindle format is
-converted to AZW3 on the way.
+which are ticked on the shelf. A book's AZW3 is sent as it is; failing
+that its EPUB is converted to AZW3 on the way; failing that the best
+other format the Kindle reads, such as a PDF, is sent. The cover goes
+along as the thumbnail the Kindle shows on its home screen.
 
 ![The Kindle page: how full the device is and the books on it](docs/screenshots/kindle.png)
 
