@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/manzanit0/athenaeum/internal/convert"
+	"github.com/manzanit0/athenaeum/internal/covers"
 	"github.com/manzanit0/athenaeum/internal/device"
 	"github.com/manzanit0/athenaeum/internal/library"
 	"github.com/manzanit0/athenaeum/internal/megasync"
@@ -58,6 +59,9 @@ type Server struct {
 	// ModelKey is the key of the language model used until the user
 	// gives one.
 	ModelKey string
+	// Covers searches the internet for covers; nil means Open Library and
+	// Google Books.
+	Covers *covers.Finder
 	// Defaults holds the setting values used until the user changes them.
 	Defaults map[string]string
 	// UI is the built web interface.
@@ -77,6 +81,8 @@ type Server struct {
 	// progress holds how far the running jobs that report it have come,
 	// by job ID.
 	progress sync.Map
+	// coversOnce guards the creation of Covers.
+	coversOnce sync.Once
 	// previewMu guards previewJobs.
 	previewMu sync.Mutex
 	// previewJobs maps the renditions being made to the jobs making them.
@@ -110,6 +116,9 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /api/books/{id}/cover", s.getCover)
 	mux.HandleFunc("PUT /api/books/{id}/cover", s.putCover)
 	mux.HandleFunc("DELETE /api/books/{id}/cover", s.deleteCover)
+	mux.HandleFunc("GET /api/books/{id}/covers", s.findCovers)
+	mux.HandleFunc("POST /api/books/{id}/cover/found", s.useFoundCover)
+	mux.HandleFunc("GET /api/covers/{cid}", s.getFoundCover)
 	mux.HandleFunc("POST /api/books/{id}/formats", s.addFormat)
 	mux.HandleFunc("GET /api/books/{id}/formats/{format}", s.downloadFormat)
 	mux.HandleFunc("DELETE /api/books/{id}/formats/{format}", s.deleteFormat)
@@ -255,6 +264,8 @@ var errorStatuses = []struct {
 	{store.ErrNotFound, http.StatusNotFound},
 	{library.ErrUnsupportedFormat, http.StatusUnsupportedMediaType},
 	{library.ErrInvalidCover, http.StatusBadRequest},
+	{covers.ErrNoQuery, http.StatusBadRequest},
+	{covers.ErrNotFound, http.StatusNotFound},
 	{library.ErrTitleRequired, http.StatusBadRequest},
 	{library.ErrInvalidDate, http.StatusBadRequest},
 	{errBadRequest, http.StatusBadRequest},

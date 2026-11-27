@@ -174,6 +174,7 @@ func (cfg config) newServer(dir string, st *store.Store) (*api.Server, error) {
 		Previews: &preview.Cache{Dir: filepath.Join(dir, "cache", "preview")},
 		Secrets:  secrets,
 		Model:    restoreModel(),
+		Covers:   coverFinder(),
 		ModelKey: cfg.modelKey,
 		Defaults: map[string]string{
 			api.SettingMegaFolder: megasync.Normalize(cfg.megaFolder),

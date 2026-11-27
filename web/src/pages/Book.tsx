@@ -2,6 +2,7 @@ import { type FormEvent, Fragment, useEffect, useId, useState } from "react";
 import { api, type Book, downloadUrl, type Metadata, warningsOf } from "../api";
 import { CategoryPicker } from "../CategoryPicker";
 import { Cover } from "../Cover";
+import { CoverFinder } from "../CoverFinder";
 import { byline, bytes, count, languageName, monthNames, publishedOn, splitList } from "../format";
 import { useLoad } from "../hooks";
 import { useNotices } from "../notices";
@@ -436,6 +437,7 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
   const { notify, track, attempt } = useNotices();
   const device = useLoad(api.device, []);
   const [confirming, setConfirming] = useState(false);
+  const [finding, setFinding] = useState(false);
   const connected = device.data?.connected ?? false;
   const openable = usable(book, system);
 
@@ -491,8 +493,9 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
         )}
         {editing && (
           <>
+            <Button onClick={() => setFinding(true)}>Find cover online</Button>
             <label className={`${buttonClass()} cursor-pointer focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ribbon`}>
-              Change cover
+              Upload cover
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/gif,image/webp"
@@ -514,6 +517,17 @@ function Sidebar({ book, editing, onChanged }: { book: Book; editing: boolean; o
           </>
         )}
       </div>
+      {finding && (
+        <CoverFinder
+          book={book}
+          onClose={() => setFinding(false)}
+          onChosen={(next) => {
+            setFinding(false);
+            onChanged(next);
+            notify("Cover changed");
+          }}
+        />
+      )}
       <Confirm
         open={confirming}
         title={`Delete “${book.title}”?`}
